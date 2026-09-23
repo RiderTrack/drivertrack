@@ -4,7 +4,7 @@
 // Local-first: todo en localStorage, backup JSON.
 // ═══════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bike, CheckCircle2, Receipt, Settings } from 'lucide-react';
+import { Bike, CheckCircle2, Moon, Receipt, Settings, Sun } from 'lucide-react';
 import { ConfigDT, Viaje } from './types';
 import {
   cargarConfig,
@@ -18,6 +18,7 @@ import {
   resumenDia,
 } from './storage';
 import { descargarArchivo, vibrar } from './utils';
+import { aplicarTema, cargarTema, guardarTema, Tema } from './theme';
 import ViajeForm from './components/ViajeForm';
 import ViajeList from './components/ViajeList';
 import MetaBar from './components/MetaBar';
@@ -35,6 +36,11 @@ export default function App() {
   const [confeti, setConfeti] = useState(false);
   const [toast, setToast] = useState('');
   const [cobrarAbierto, setCobrarAbierto] = useState(false);
+  const [tema, setTema] = useState<Tema>(() => {
+    const t = cargarTema();
+    aplicarTema(t);
+    return t;
+  });
   const toastTimer = useRef<number | null>(null);
 
   const hoy = fechaHoy();
@@ -61,6 +67,14 @@ export default function App() {
     setToast(msg);
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(''), 2600);
+  }
+
+  function alternarTema() {
+    const t: Tema = tema === 'claro' ? 'oscuro' : 'claro';
+    setTema(t);
+    guardarTema(t);
+    aplicarTema(t);
+    vibrar(40);
   }
 
   function agregarViaje(v: Viaje) {
@@ -106,7 +120,7 @@ export default function App() {
 
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/95 px-4 pb-3 pt-4 backdrop-blur">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700">
               <Bike size={18} className="text-slate-950" />
@@ -116,9 +130,20 @@ export default function App() {
               <p className="text-[10px] capitalize text-slate-400">{fechaBonita(hoy)}</p>
             </div>
           </div>
-          <div className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-right">
-            <p className="text-[9px] font-medium uppercase tracking-wide text-emerald-500/80">Neto hoy</p>
-            <p className="text-sm font-black leading-none text-emerald-400">S/ {resumenHoy.neto.toFixed(2)}</p>
+          <div className="flex items-center gap-2">
+            {/* 🌗 F-ID2.3: modo claro / oscuro */}
+            <button
+              onClick={alternarTema}
+              aria-label={tema === 'claro' ? 'Activar modo oscuro' : 'Activar modo claro'}
+              data-testid="boton-tema"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 transition-transform active:scale-90"
+            >
+              {tema === 'claro' ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+            <div className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-right">
+              <p className="text-[9px] font-medium uppercase tracking-wide text-emerald-500/80">Neto hoy</p>
+              <p className="text-sm font-black leading-none text-emerald-400">S/ {resumenHoy.neto.toFixed(2)}</p>
+            </div>
           </div>
         </div>
       </header>

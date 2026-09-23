@@ -7,6 +7,15 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>DriverTrack</title>
+    <script>
+      // 🌗 F-ID2.3: aplica el tema guardado ANTES del primer render
+      // (sin esto, los de modo claro verían un flash oscuro al abrir)
+      try {
+        if (localStorage.getItem('dt_tema_v1') === 'claro') {
+          document.documentElement.classList.add('light');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

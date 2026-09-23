@@ -2,10 +2,10 @@
 // ⚙️ DriverTrack — Ajustes: meta, comisiones, Yape/Plin,
 // key del escáner Gemini (F-ID2) y backup
 // ═══════════════════════════════════════════════════════════
-import { useRef, useState } from 'react';
-import { Bot, Database, ExternalLink, Loader2, Save, Trash2, Upload, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Bot, Check, Database, ExternalLink, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { Billetera, ConfigDT, ORIGENES } from '../types';
-import { guardarConfig } from '../storage';
+import { CONFIG_DEFECTO, guardarConfig } from '../storage';
 import { comprimirImagen, descargarArchivo } from '../utils';
 import { probarKeyIA } from '../services/escanerIA';
 
@@ -101,8 +101,9 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
   const [prueba, setPrueba] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const inputBackup = useRef<HTMLInputElement>(null);
 
-  function guardar() {
-    const c: ConfigDT = {
+  // Arma el ConfigDT completo a partir de los estados locales
+  function armarConfig(): ConfigDT {
+    return {
       metaDiaria: parseFloat(meta) || 0,
       comisiones: {
         indrive: parseFloat(String(comisiones.indrive)) || 0,
@@ -114,24 +115,28 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       plin,
       geminiKey: geminiKey.trim(),
     };
-    guardarConfig(c);
-    onGuardar(c);
-    onToast('Ajustes guardados ✅');
   }
 
-  // F-ID2.2: la key se autoguarda AL PEGARLA. Antes vivía solo en memoria
-  // hasta apretar "Guardar ajustes" (botón al fondo de todo) → al cambiar
-  // de pestaña o reiniciar el teléfono se BORRABA y había que pegarla otra vez
-  function autoguardarKey(v: string) {
-    const c: ConfigDT = { ...config, geminiKey: v.trim() };
+  // F-ID2.3: TODO se autoguarda al tocarlo (meta, % con decimales,
+  // Yape/Plin, key). Antes los ajustes vivían en memoria hasta apretar
+  // "Guardar ajustes" (al fondo de todo) → al cambiar de pestaña se
+  // perdían (el bug del 10.89 → volvía a 10). Mismo fix que la key
+  // en F-ID2.2, ahora para toda la pantalla.
+  const primerRender = useRef(true);
+  useEffect(() => {
+    if (primerRender.current) {
+      primerRender.current = false;
+      return;
+    }
+    const c = armarConfig();
     guardarConfig(c);
     onGuardar(c);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, comisiones, yape, plin, geminiKey]);
 
   async function probarKey() {
     setProbando(true);
     setPrueba(null);
-    autoguardarKey(geminiKey); // F-ID2.2: probar también guarda la key
     const r = await probarKeyIA(geminiKey);
     setPrueba(r.ok ? { ok: true, mensaje: `${r.mensaje} · quedó guardada ✅` } : r);
     setProbando(false);
@@ -142,6 +147,20 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
     if (!file) return;
     const texto = await file.text();
     onImportarBackup(texto);
+    // F-ID2.3: re-sincroniza los campos con lo importado (un backup viejo
+    // puede no tener algún campo → se completa con los defaults)
+    try {
+      const data = JSON.parse(texto) as { config?: Partial<ConfigDT> };
+      if (data.config) {
+        setMeta(String(data.config.metaDiaria ?? CONFIG_DEFECTO.metaDiaria));
+        setComisiones({ ...CONFIG_DEFECTO.comisiones, ...data.config.comisiones });
+        setYape({ ...CONFIG_DEFECTO.yape, ...data.config.yape });
+        setPlin({ ...CONFIG_DEFECTO.plin, ...data.config.plin });
+        setGeminiKey(data.config.geminiKey ?? '');
+      }
+    } catch {
+      /* App ya muestra el toast de archivo inválido */
+    }
   }
 
   return (
@@ -155,9 +174,11 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
         <input
           type="number"
           inputMode="decimal"
+          step="0.01"
           value={meta}
           onChange={e => setMeta(e.target.value)}
           className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-lg font-black text-amber-300 outline-none focus:border-amber-400"
+          data-testid="input-meta"
         />
       </section>
 
@@ -179,7 +200,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
             onChange={e => {
               setGeminiKey(e.target.value);
               setPrueba(null);
-              autoguardarKey(e.target.value); // F-ID2.2: nunca más se pierde
+              // el autoguardado lo hace el useEffect de arriba
             }}
             placeholder="Pegá tu key — Gemini: AIza… o AQ.… · Claude: sk-ant-…"
             className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 font-mono text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-emerald-400"
@@ -231,7 +252,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
             <span className="font-mono">sk-ant-…</span> de console.anthropic.com).
           </p>
           <p>
-            🔒 La key se guarda SOLA al pegarla y vive SOLO en tu teléfono (como tus viajes). Probala con “Probar key” y escaneá con el botón 📷 en Viajes.
+            🔒 La key se guarda SOLA al pegarla (como todos los ajustes) y vive SOLO en tu teléfono. Probala con “Probar key” y escaneá con el botón 📷 en Viajes.
           </p>
         </div>
       </section>
@@ -249,9 +270,11 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
               <input
                 type="number"
                 inputMode="decimal"
+                step="0.01"
                 value={comisiones[o.id]}
                 onChange={e => setComisiones({ ...comisiones, [o.id]: e.target.value })}
                 className="w-20 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-right text-sm font-bold text-amber-300 outline-none focus:border-amber-400"
+                data-testid={`input-comision-${o.id}`}
               />
             </div>
           ))}
@@ -316,16 +339,16 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
         )}
       </section>
 
-      {/* Guardar */}
-      <button
-        onClick={guardar}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3.5 text-sm font-black text-slate-950 active:scale-[0.98]"
+      {/* Todo se guarda solo (F-ID2.3) */}
+      <p
+        className="flex items-center justify-center gap-1.5 pb-1 text-center text-[11px] font-semibold text-emerald-400"
+        data-testid="nota-autoguardado"
       >
-        <Save size={16} /> Guardar ajustes
-      </button>
+        <Check size={12} /> Todo se guarda solo — cambiá lo que quieras y salí tranquilo
+      </p>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.2.2 (F-ID2.2) — Trackverse · Lima, PE
+        DriverTrack v0.2.3 (F-ID2.3) — Trackverse · Lima, PE
       </p>
     </div>
   );
