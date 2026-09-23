@@ -10,7 +10,7 @@ App hermana de [RiderTrack V2](https://github.com/RiderTrack/ridertrack-v2) — 
 - **🎯 Meta del día**: "S/ 100 y me voy a casa" — barra de progreso + confeti 🎉 + vibración cuando llegás
 - **💰 Caja**: resumen por día (bruto / comisiones / neto), navegación por fecha, exportar CSV, compartir resumen por WhatsApp
 - **💜 Cobrar con Yape/Plin**: panel con tu QR + número + monto, listo para mandar al cliente
-- **📷 Escanear dirección (F-ID2)**: foto del pedido (captura, chat o nota a mano) → IA Gemini llena el viaje sola: cliente, zona, tarifa y dirección. Key gratuita propia, vive solo en tu teléfono
+- **📷 Escanear dirección (F-ID2)**: foto del pedido (captura, chat o nota a mano) → la IA llena el viaje sola: cliente, zona, tarifa y dirección. Key de Gemini gratis (`AIza…` o el nuevo `AQ.…`) o de Claude (`sk-ant-…`) — se detecta sola, vive solo en tu teléfono
 - **🗄️ Backup local**: exportá/importá todos tus datos en JSON (local-first, sin cuentas)
 
 ## 📱 Instalación

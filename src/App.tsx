@@ -133,7 +133,7 @@ export default function App() {
               onAgregar={agregarViaje}
               onNecesitaKey={() => {
                 setTab('ajustes');
-                mostrarToast('Pegá tu key de Gemini en 🤖 Escáner — gratis, 1 minuto');
+                mostrarToast('Pegá tu key de IA en 🤖 Escáner — Gemini gratis, 1 minuto');
               }}
             />
             <ViajeList viajes={delDia} onEliminar={eliminarViaje} titulo="de hoy" />

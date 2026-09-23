@@ -7,7 +7,7 @@ import { Bot, Database, ExternalLink, Loader2, Save, Trash2, Upload, X } from 'l
 import { Billetera, ConfigDT, ORIGENES } from '../types';
 import { guardarConfig } from '../storage';
 import { comprimirImagen, descargarArchivo } from '../utils';
-import { probarKeyGemini } from '../services/geminiOcr';
+import { probarKeyIA } from '../services/escanerIA';
 
 interface Props {
   config: ConfigDT;
@@ -122,7 +122,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
   async function probarKey() {
     setProbando(true);
     setPrueba(null);
-    const r = await probarKeyGemini(geminiKey);
+    const r = await probarKeyIA(geminiKey);
     setPrueba(r);
     setProbando(false);
   }
@@ -154,11 +154,12 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       {/* Escáner Gemini (F-ID2) */}
       <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
         <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
-          <Bot size={14} /> Escáner de direcciones (IA Gemini)
+          <Bot size={14} /> Escáner de direcciones (IA)
         </p>
         <p className="mt-1 text-[11px] text-slate-400">
-          Le tomás una foto al pedido (captura, chat o nota a mano) y la app llena el viaje sola:
-          cliente, zona, tarifa y dirección. Gratis.
+          Le tomás una foto al pedido (captura, chat o nota a mano) y la IA llena el viaje sola: cliente, zona, tarifa y
+          dirección. Acepta <span className="font-bold text-emerald-400">Gemini</span> (gratis) o{' '}
+          <span className="font-bold text-sky-400">Claude</span> (de pago) — se detecta sola.
         </p>
 
         <div className="mt-2">
@@ -169,7 +170,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
               setGeminiKey(e.target.value);
               setPrueba(null);
             }}
-            placeholder="Pegá tu key de Gemini (empieza con AIza…)"
+            placeholder="Pegá tu key — Gemini: AIza… o AQ.… · Claude: sk-ant-…"
             className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 font-mono text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-emerald-400"
             data-testid="input-gemini-key"
           />
@@ -207,15 +208,19 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
           </p>
         )}
 
-        <div className="mt-2 space-y-0.5 rounded-lg bg-slate-900/60 p-2.5 text-[10px] leading-relaxed text-slate-500">
+        <div className="mt-2 space-y-1 rounded-lg bg-slate-900/60 p-2.5 text-[10px] leading-relaxed text-slate-500">
           <p>
-            <span className="font-bold text-slate-400">¿Cómo la consigo?</span> 1) Tocá "Crear key gratis" (o entrá a{' '}
-            <span className="font-mono">aistudio.google.com/apikey</span> en tu navegador) · 2) Iniciá sesión con tu cuenta Google y
-            tocá <span className="font-bold text-slate-400">"Crear clave de API"</span> · 3) Copiala, pégala acá y guardá.
+            <span className="font-bold text-emerald-400">🟢 GEMINI (gratis, recomendada):</span> 1) Tocá “Crear key gratis” (
+            <span className="font-mono">aistudio.google.com/apikey</span>) · 2) sesión Google → “Crear clave de API” · 3)
+            copiala y pegala acá. ¿Te dio una key que empieza con <span className="font-mono">AQ.</span>? Es el formato
+            NUEVO de Google — también vale ✅
           </p>
-          <p className="pt-1">
-            🔒 La key vive SOLO en tu teléfono (como tus viajes). El plan gratis te alcanza de sobra para escanear todos los
-            días. Después de guardar la key, probá el botón 📷 en Viajes.
+          <p>
+            <span className="font-bold text-sky-400">🔵 CLAUDE (de pago, opcional):</span> la misma key que usa rudy-bot (
+            <span className="font-mono">sk-ant-…</span> de console.anthropic.com).
+          </p>
+          <p>
+            🔒 La key vive SOLO en tu teléfono (como tus viajes). Después de guardar, probá el botón 📷 en Viajes.
           </p>
         </div>
       </section>
@@ -309,7 +314,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </button>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.2.0 (F-ID2) — Trackverse · Lima, PE
+        DriverTrack v0.2.1 (F-ID2.1) — Trackverse · Lima, PE
       </p>
     </div>
   );

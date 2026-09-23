@@ -79,3 +79,38 @@ y la sección 🤖 en Ajustes.
 3. Andá a Viajes → 📷 → sacale foto a cualquier chat de pedido o captura
    de inDrive → mirá cómo se llena todo solo
 4. Si algo raro: mandame captura de la pantalla del escaneo
+
+---
+
+## 🔧 PATCH F-ID2.1 — keys nuevas de Gemini (AQ.) + modelos 3.x + soporte Claude
+
+### ¿Tu key empieza con "AQ." y no con "AIza"? ¡Es VÁLIDA! ✅
+
+Google tiene DOS generaciones de keys para AI Studio:
+- **`AIza…`** — la clásica, atada a un proyecto de Google Cloud
+- **`AQ.…`** — el formato NUEVO que AI Studio entrega ahora, atada a tu cuenta
+  (sin proyecto de Cloud, keys de "nueva generación")
+
+La app ya acepta las dos. Además Google **retiró los modelos `gemini-2.0-flash`
+y `gemini-2.5-flash`** para cuentas nuevas — la app ahora usa la generación 3.x
+con cadena de respaldo: `gemini-flash-latest` → `gemini-3.6-flash` → `gemini-3.5-flash`.
+
+### Y Claude también 🤝
+
+El mismo campo de Ajustes detecta solo qué key le pegaste:
+- `AIza…` o `AQ.…` → **Gemini** (gratis — recomendado)
+- `sk-ant-…` → **Claude** (Anthropic, de pago — la misma API que usa rudy-bot)
+
+"Probar key" te dice qué proveedor detectó y con qué modelo respondió.
+
+### Detalles técnicos del parche
+
+- Auth de Gemini migrada de `?key=` (URL) a **header `x-goog-api-key`** —
+  validada con la key AQ. real: ambos métodos autentican, el header es más limpio
+- Archivo renombrado: `geminiOcr.ts` → `escanerIA.ts` (ya es multi-proveedor)
+- Nuevo error mapeado: región bloqueada ("User location is not supported") con
+  mensaje claro que sugiere Claude como plan B
+- Claude usa `anthropic-dangerous-direct-browser-access` (llamada directa desde
+  la app, sin servidor propio) — mismo patrón que la web de Anthropic
+- Validación: tsc 0 err · build OK · **41/41 tests headless** (key AQ., Claude,
+  formato inválido sin gastar llamada, header auth, modelos 3.x)

@@ -9,7 +9,7 @@ import { Camera, Check, Loader2, Plus, X, Zap } from 'lucide-react';
 import { ConfigDT, OrigenViaje, ORIGENES, Viaje } from '../types';
 import { fechaHoy, horaAhora } from '../storage';
 import { fmtSoles, vibrar } from '../utils';
-import { escanearDireccion } from '../services/geminiOcr';
+import { escanearDireccion } from '../services/escanerIA';
 
 interface Props {
   config: ConfigDT;
