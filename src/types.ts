@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// 🏍️ DriverTrack — Tipos centrales (F-ID1)
+// 🏍️ DriverTrack — Tipos centrales (F-ID1 + F-ID2)
 // ═══════════════════════════════════════════════════════════
 
 export type OrigenViaje = 'indrive' | 'rappi' | 'pedidosya' | 'directo';
@@ -29,6 +29,7 @@ export interface ConfigDT {
   comisiones: Record<OrigenViaje, number>;  // % default por origen
   yape: Billetera;
   plin: Billetera;
+  geminiKey: string;                        // F-ID2: key de AI Studio para el escáner (vive solo en el teléfono)
 }
 
 export interface ResumenDia {

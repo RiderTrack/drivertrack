@@ -14,6 +14,7 @@ export const CONFIG_DEFECTO: ConfigDT = {
   comisiones: { indrive: 10, rappi: 25, pedidosya: 25, directo: 0 },
   yape: { numero: '', titular: '', qrBase64: '' },
   plin: { numero: '', titular: '', qrBase64: '' },
+  geminiKey: '',
 };
 
 export function fechaHoy(): string {

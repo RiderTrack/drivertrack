@@ -128,7 +128,14 @@ export default function App() {
         {tab === 'viajes' && (
           <>
             <MetaBar neto={resumenHoy.neto} meta={config.metaDiaria} />
-            <ViajeForm config={config} onAgregar={agregarViaje} />
+            <ViajeForm
+              config={config}
+              onAgregar={agregarViaje}
+              onNecesitaKey={() => {
+                setTab('ajustes');
+                mostrarToast('Pegá tu key de Gemini en 🤖 Escáner — gratis, 1 minuto');
+              }}
+            />
             <ViajeList viajes={delDia} onEliminar={eliminarViaje} titulo="de hoy" />
           </>
         )}

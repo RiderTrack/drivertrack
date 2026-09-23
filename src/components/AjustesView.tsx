@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════════
-// ⚙️ DriverTrack — Ajustes: meta, comisiones, Yape/Plin, backup
+// ⚙️ DriverTrack — Ajustes: meta, comisiones, Yape/Plin,
+// key del escáner Gemini (F-ID2) y backup
 // ═══════════════════════════════════════════════════════════
 import { useRef, useState } from 'react';
-import { Database, Save, Trash2, Upload, X } from 'lucide-react';
+import { Bot, Database, ExternalLink, Loader2, Save, Trash2, Upload, X } from 'lucide-react';
 import { Billetera, ConfigDT, ORIGENES } from '../types';
 import { guardarConfig } from '../storage';
 import { comprimirImagen, descargarArchivo } from '../utils';
+import { probarKeyGemini } from '../services/geminiOcr';
 
 interface Props {
   config: ConfigDT;
@@ -94,6 +96,9 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
   const [comisiones, setComisiones] = useState({ ...config.comisiones });
   const [yape, setYape] = useState({ ...config.yape });
   const [plin, setPlin] = useState({ ...config.plin });
+  const [geminiKey, setGeminiKey] = useState(config.geminiKey);
+  const [probando, setProbando] = useState(false);
+  const [prueba, setPrueba] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const inputBackup = useRef<HTMLInputElement>(null);
 
   function guardar() {
@@ -107,10 +112,19 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       },
       yape,
       plin,
+      geminiKey: geminiKey.trim(),
     };
     guardarConfig(c);
     onGuardar(c);
     onToast('Ajustes guardados ✅');
+  }
+
+  async function probarKey() {
+    setProbando(true);
+    setPrueba(null);
+    const r = await probarKeyGemini(geminiKey);
+    setPrueba(r);
+    setProbando(false);
   }
 
   async function importar(e: React.ChangeEvent<HTMLInputElement>) {
@@ -135,6 +149,75 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
           onChange={e => setMeta(e.target.value)}
           className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-lg font-black text-amber-300 outline-none focus:border-amber-400"
         />
+      </section>
+
+      {/* Escáner Gemini (F-ID2) */}
+      <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+        <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
+          <Bot size={14} /> Escáner de direcciones (IA Gemini)
+        </p>
+        <p className="mt-1 text-[11px] text-slate-400">
+          Le tomás una foto al pedido (captura, chat o nota a mano) y la app llena el viaje sola:
+          cliente, zona, tarifa y dirección. Gratis.
+        </p>
+
+        <div className="mt-2">
+          <input
+            type="password"
+            value={geminiKey}
+            onChange={e => {
+              setGeminiKey(e.target.value);
+              setPrueba(null);
+            }}
+            placeholder="Pegá tu key de Gemini (empieza con AIza…)"
+            className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 font-mono text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-emerald-400"
+            data-testid="input-gemini-key"
+          />
+        </div>
+
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            onClick={probarKey}
+            disabled={probando}
+            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500/15 py-2.5 text-xs font-bold text-emerald-300 disabled:opacity-60"
+            data-testid="boton-probar-key"
+          >
+            {probando ? <Loader2 size={14} className="animate-spin" /> : null}
+            {probando ? 'Probando…' : 'Probar key'}
+          </button>
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl bg-slate-700 py-2.5 text-xs font-bold text-slate-200"
+          >
+            <ExternalLink size={14} /> Crear key gratis
+          </a>
+        </div>
+
+        {prueba && (
+          <p
+            className={`mt-2 rounded-lg px-3 py-2 text-xs font-semibold ${
+              prueba.ok ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/10 text-red-400'
+            }`}
+            data-testid="resultado-probar"
+          >
+            {prueba.ok ? '✅ ' : '❌ '}
+            {prueba.mensaje}
+          </p>
+        )}
+
+        <div className="mt-2 space-y-0.5 rounded-lg bg-slate-900/60 p-2.5 text-[10px] leading-relaxed text-slate-500">
+          <p>
+            <span className="font-bold text-slate-400">¿Cómo la consigo?</span> 1) Tocá "Crear key gratis" (o entrá a{' '}
+            <span className="font-mono">aistudio.google.com/apikey</span> en tu navegador) · 2) Iniciá sesión con tu cuenta Google y
+            tocá <span className="font-bold text-slate-400">"Crear clave de API"</span> · 3) Copiala, pégala acá y guardá.
+          </p>
+          <p className="pt-1">
+            🔒 La key vive SOLO en tu teléfono (como tus viajes). El plan gratis te alcanza de sobra para escanear todos los
+            días. Después de guardar la key, probá el botón 📷 en Viajes.
+          </p>
+        </div>
       </section>
 
       {/* Comisiones por plataforma */}
@@ -226,7 +309,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </button>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.1.0 (F-ID1) — Trackverse · Lima, PE
+        DriverTrack v0.2.0 (F-ID2) — Trackverse · Lima, PE
       </p>
     </div>
   );

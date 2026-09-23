@@ -27,6 +27,17 @@ export async function vibrar(ms = 400): Promise<void> {
 // Comprime una imagen a JPEG base64 (mismo approach de RiderTrack YapeQRView):
 // máx 800px de lado, calidad 0.8 — liviana para localStorage
 export function comprimirImagen(file: File): Promise<string> {
+  return comprimirImagenConLimite(file, 800, 0.8);
+}
+
+// F-ID2: para el ESCANEO OCR usamos más resolución — el texto de una
+// dirección (a veces a mano, a veces chiquito en una captura) necesita
+// píxeles para que Gemini lo lea bien. 1400px / calidad 0.85 ≈ 300-500 KB.
+export function comprimirImagenParaOCR(file: File): Promise<string> {
+  return comprimirImagenConLimite(file, 1400, 0.85);
+}
+
+function comprimirImagenConLimite(file: File, MAX: number, calidad: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
@@ -34,7 +45,6 @@ export function comprimirImagen(file: File): Promise<string> {
       const img = new Image();
       img.onerror = () => reject(new Error('Imagen inválida'));
       img.onload = () => {
-        const MAX = 800;
         let { width, height } = img;
         if (width > MAX || height > MAX) {
           if (width >= height) {
@@ -53,7 +63,7 @@ export function comprimirImagen(file: File): Promise<string> {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.8));
+        resolve(canvas.toDataURL('image/jpeg', calidad));
       };
       img.src = reader.result as string;
     };

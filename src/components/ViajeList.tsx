@@ -54,6 +54,11 @@ export default function ViajeList({ viajes, onEliminar, titulo }: Props) {
                 −{fmtSoles(v.comision)} ({v.comisionPct}%)
               </span>
             </div>
+            {v.notas && (
+              <p className="mt-1 truncate text-[10px] leading-snug text-slate-500" title={v.notas}>
+                📍 {v.notas.split('\n')[0]}
+              </p>
+            )}
           </div>
 
           {confirmarId === v.id ? (
