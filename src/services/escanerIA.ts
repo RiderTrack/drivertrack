@@ -125,7 +125,9 @@ class ErrorOcr extends Error {
 }
 
 interface RespuestaGemini {
-  candidates?: { content?: { parts?: { text?: string }[] } }[];
+  // F-ID2.2: los modelos 3.x devuelven sus "pensamientos" como parts
+  // marcadas thought:true — hay que saber ignorarlas
+  candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
   error?: { code?: number; message?: string };
 }
 
@@ -163,7 +165,10 @@ async function llamarGemini(apiKey: string, body: Record<string, unknown>): Prom
       const data = (await res.json().catch(() => ({}))) as RespuestaGemini;
 
       if (res.status === 200) {
-        const texto = data.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? '';
+        // F-ID2.2: se filtran los "pensamientos" (thought:true) de los
+        // modelos 3.x — antes se pegaban junto a la respuesta y rompían el JSON
+        const texto =
+          data.candidates?.[0]?.content?.parts?.filter(p => !p.thought).map(p => p.text ?? '').join('') ?? '';
         if (!texto) throw new ErrorOcr('sin-datos');
         return { texto, modelo };
       }
@@ -264,7 +269,8 @@ async function llamarIA(apiKey: string, p: PeticionIA): Promise<ResultadoIA> {
         temperature: 0,
         ...(p.imagenB64
           ? { responseMimeType: 'application/json', responseSchema: SCHEMA }
-          : { maxOutputTokens: 10 }),
+          : {}), // ping SIN maxOutputTokens: los modelos 3.x "piensan" y un
+        // tope chico se lo gastan pensando → respuesta vacía (bug F-ID2.2)
       },
     };
     const r = await llamarGemini(apiKey, body);
@@ -341,15 +347,21 @@ export async function probarKeyIA(apiKey: string): Promise<{ ok: boolean; mensaj
   if (!key) return { ok: false, mensaje: 'Pegá la key primero' };
   const proveedor = detectarProveedor(key);
   if (!proveedor) return { ok: false, mensaje: mensajeErrorOcr('formato-key') };
+  const nombre = proveedor === 'gemini' ? 'Gemini' : 'Claude';
 
   try {
-    const { modelo, proveedor: p } = await llamarIA(key, { prompt: 'Responde solo: ok' });
-    const nombre = p === 'gemini' ? 'Gemini' : 'Claude';
+    const { modelo } = await llamarIA(key, { prompt: 'Responde solo: ok' });
     return { ok: true, mensaje: `Key ${nombre} funcionando ✅ (${modelo})` };
   } catch (e) {
     const codigo: CodigoErrorOcr = e instanceof ErrorOcr ? e.codigo : 'desconocido';
     if (codigo === 'quota') {
       return { ok: true, mensaje: 'La key SÍ funciona (ahora está en su límite de momento, en un rato escanea normal)' };
+    }
+    // F-ID2.2: la API respondió 200 pero el modelo contestó vacío →
+    // la key ANDA. Antes esto se reportaba como "no pude leer nada en
+    // la foto" y confundía (el ping no tiene ninguna foto)
+    if (codigo === 'sin-datos') {
+      return { ok: true, mensaje: `Key ${nombre} funcionando ✅ (el modelo respondió a medias, pero la key está OK — escaneá nomás)` };
     }
     return { ok: false, mensaje: mensajeErrorOcr(codigo) };
   }

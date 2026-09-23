@@ -119,11 +119,21 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
     onToast('Ajustes guardados ✅');
   }
 
+  // F-ID2.2: la key se autoguarda AL PEGARLA. Antes vivía solo en memoria
+  // hasta apretar "Guardar ajustes" (botón al fondo de todo) → al cambiar
+  // de pestaña o reiniciar el teléfono se BORRABA y había que pegarla otra vez
+  function autoguardarKey(v: string) {
+    const c: ConfigDT = { ...config, geminiKey: v.trim() };
+    guardarConfig(c);
+    onGuardar(c);
+  }
+
   async function probarKey() {
     setProbando(true);
     setPrueba(null);
+    autoguardarKey(geminiKey); // F-ID2.2: probar también guarda la key
     const r = await probarKeyIA(geminiKey);
-    setPrueba(r);
+    setPrueba(r.ok ? { ok: true, mensaje: `${r.mensaje} · quedó guardada ✅` } : r);
     setProbando(false);
   }
 
@@ -169,6 +179,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
             onChange={e => {
               setGeminiKey(e.target.value);
               setPrueba(null);
+              autoguardarKey(e.target.value); // F-ID2.2: nunca más se pierde
             }}
             placeholder="Pegá tu key — Gemini: AIza… o AQ.… · Claude: sk-ant-…"
             className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 font-mono text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-emerald-400"
@@ -220,7 +231,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
             <span className="font-mono">sk-ant-…</span> de console.anthropic.com).
           </p>
           <p>
-            🔒 La key vive SOLO en tu teléfono (como tus viajes). Después de guardar, probá el botón 📷 en Viajes.
+            🔒 La key se guarda SOLA al pegarla y vive SOLO en tu teléfono (como tus viajes). Probala con “Probar key” y escaneá con el botón 📷 en Viajes.
           </p>
         </div>
       </section>
@@ -314,7 +325,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </button>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.2.1 (F-ID2.1) — Trackverse · Lima, PE
+        DriverTrack v0.2.2 (F-ID2.2) — Trackverse · Lima, PE
       </p>
     </div>
   );
