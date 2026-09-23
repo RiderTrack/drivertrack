@@ -1,0 +1,19 @@
+{
+  "appId": "com.drivertrack.app",
+  "appName": "DriverTrack",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "backgroundColor": "#0F172A",
+      "showSpinner": false
+    }
+  }
+}
