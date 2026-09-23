@@ -27,8 +27,12 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # El runner ubuntu-latest ya trae el Android SDK preinstalado
+      # (ANDROID_SDK_ROOT + build-tools + platform-tools). La action
+      # android-actions/setup-android falla intermitentemente por el
+      # license del SDK Preview — no es necesaria aquí.
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses > /dev/null || true
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
