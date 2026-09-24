@@ -97,6 +97,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
   const [yape, setYape] = useState({ ...config.yape });
   const [plin, setPlin] = useState({ ...config.plin });
   const [geminiKey, setGeminiKey] = useState(config.geminiKey);
+  const [claudeKey, setClaudeKey] = useState(config.claudeKey); // F-ID2.5: token de respaldo
   const [probando, setProbando] = useState(false);
   const [prueba, setPrueba] = useState<{ ok: boolean; mensaje: string } | null>(null);
   const inputBackup = useRef<HTMLInputElement>(null);
@@ -114,6 +115,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       yape,
       plin,
       geminiKey: geminiKey.trim(),
+      claudeKey: claudeKey.trim(),
     };
   }
 
@@ -132,12 +134,12 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
     guardarConfig(c);
     onGuardar(c);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, comisiones, yape, plin, geminiKey]);
+  }, [meta, comisiones, yape, plin, geminiKey, claudeKey]);
 
   async function probarKey() {
     setProbando(true);
     setPrueba(null);
-    const r = await probarKeyIA(geminiKey);
+    const r = await probarKeyIA(geminiKey, claudeKey);
     setPrueba(r.ok ? { ok: true, mensaje: `${r.mensaje} · quedó guardada ✅` } : r);
     setProbando(false);
   }
@@ -157,6 +159,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
         setYape({ ...CONFIG_DEFECTO.yape, ...data.config.yape });
         setPlin({ ...CONFIG_DEFECTO.plin, ...data.config.plin });
         setGeminiKey(data.config.geminiKey ?? '');
+        setClaudeKey(data.config.claudeKey ?? '');
       }
     } catch {
       /* App ya muestra el toast de archivo inválido */
@@ -182,19 +185,20 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
         />
       </section>
 
-      {/* Escáner Gemini (F-ID2) */}
+      {/* Escáner IA (F-ID2 → F-ID2.5) */}
       <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
         <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
-          <Bot size={14} /> Escáner de direcciones (IA)
+          <Bot size={14} /> Escáner de pedidos (IA)
         </p>
         <p className="mt-1 text-[11px] text-slate-400">
-          Tomale una foto o subí una captura del pedido (captura, chat o nota a mano) y la IA llena el viaje sola:
-          cliente, zona, tarifa y dirección. Acepta <span className="font-bold text-emerald-400">Gemini</span> (gratis)
-          o <span className="font-bold text-sky-400">Claude</span> (de pago) — se detecta sola. Con capturas de pantalla
-          (botón 🖼️ Galería en Viajes) funciona mejor que con foto a la pantalla.
+          Tomale una foto o subí una captura del pedido y la IA llena el viaje sola: cliente, zona, tarifa, dirección y
+          celular. Podés configurar <span className="font-bold text-emerald-400">Gemini</span> (gratis) y{' '}
+          <span className="font-bold text-sky-400">Claude</span> — si Gemini falla (ej: sin créditos),{' '}
+          <span className="font-bold">Claude lo rescata solo</span>.
         </p>
 
         <div className="mt-2">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-emerald-400/80">🟢 Key de Gemini (gratis)</p>
           <input
             type="password"
             value={geminiKey}
@@ -203,9 +207,26 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
               setPrueba(null);
               // el autoguardado lo hace el useEffect de arriba
             }}
-            placeholder="Pegá tu key — Gemini: AIza… o AQ.… · Claude: sk-ant-…"
+            placeholder="AIza… o AQ.…"
             className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 font-mono text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-emerald-400"
             data-testid="input-gemini-key"
+          />
+        </div>
+
+        <div className="mt-2">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-sky-400/80">
+            🔵 Token de Claude (respaldo automático — opcional)
+          </p>
+          <input
+            type="password"
+            value={claudeKey}
+            onChange={e => {
+              setClaudeKey(e.target.value);
+              setPrueba(null);
+            }}
+            placeholder="sk-ant-… (console.anthropic.com)"
+            className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 font-mono text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-sky-400"
+            data-testid="input-claude-key"
           />
         </div>
 
@@ -217,7 +238,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
             data-testid="boton-probar-key"
           >
             {probando ? <Loader2 size={14} className="animate-spin" /> : null}
-            {probando ? 'Probando…' : 'Probar key'}
+            {probando ? 'Probando…' : 'Probar keys'}
           </button>
           <a
             href="https://aistudio.google.com/apikey"
@@ -245,15 +266,16 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
           <p>
             <span className="font-bold text-emerald-400">🟢 GEMINI (gratis, recomendada):</span> 1) Tocá “Crear key gratis” (
             <span className="font-mono">aistudio.google.com/apikey</span>) · 2) sesión Google → “Crear clave de API” · 3)
-            copiala y pegala acá. ¿Te dio una key que empieza con <span className="font-mono">AQ.</span>? Es el formato
+            copiala y pegala arriba. ¿Te dio una key que empieza con <span className="font-mono">AQ.</span>? Es el formato
             NUEVO de Google — también vale ✅
           </p>
           <p>
-            <span className="font-bold text-sky-400">🔵 CLAUDE (de pago, opcional):</span> la misma key que usa rudy-bot (
-            <span className="font-mono">sk-ant-…</span> de console.anthropic.com).
+            <span className="font-bold text-sky-400">🔵 CLAUDE (respaldo):</span> tu token{' '}
+            <span className="font-mono">sk-ant-…</span> de console.anthropic.com (el mismo de rudy-bot). Si Gemini se
+            queda sin créditos, el escáner sigue andando con Claude sin que hagas nada.
           </p>
           <p>
-            🔒 La key se guarda SOLA al pegarla (como todos los ajustes) y vive SOLO en tu teléfono. Probala con “Probar key” y escaneá con el botón 📷 en Viajes.
+            🔒 Las keys se guardan SOLAS al pegarlas y viven SOLO en tu teléfono. Probá con “Probar keys” y escaneá con 📷 o 🖼️ en Viajes.
           </p>
         </div>
       </section>
@@ -349,7 +371,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </p>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.2.4 (F-ID2.4) — Trackverse · Lima, PE
+        DriverTrack v0.2.5 (F-ID2.5) — Trackverse · Lima, PE
       </p>
     </div>
   );

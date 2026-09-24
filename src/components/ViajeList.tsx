@@ -1,10 +1,12 @@
 // ═══════════════════════════════════════════════════════════
-// 📋 DriverTrack — Lista de viajes del día
+// 📋 DriverTrack — Lista de viajes del día (F-ID2.5)
+// Muestra la dirección de entrega propia y, si hay celular,
+// el botón 💬 para mandar el mensaje de cobro por WhatsApp.
 // ═══════════════════════════════════════════════════════════
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { MessageCircle, Trash2 } from 'lucide-react';
 import { nombreOrigen, Viaje } from '../types';
-import { fmtSoles } from '../utils';
+import { fmtSoles, linkWhatsApp, normalizarCelular } from '../utils';
 
 interface Props {
   viajes: Viaje[]; // solo los del día mostrado
@@ -14,6 +16,20 @@ interface Props {
 
 export default function ViajeList({ viajes, onEliminar, titulo }: Props) {
   const [confirmarId, setConfirmarId] = useState<string | null>(null);
+
+  // F-ID2.5: el mismo mensaje de cobro del formulario (estilo QR)
+  function mensajeCobro(v: Viaje): string {
+    const nombre = v.cliente.trim() || 'estimado cliente';
+    const lineas: string[] = [`Hola ${nombre}! 👋`];
+    if (v.tarifa > 0) {
+      lineas.push(`🛵 Este es el monto que tienes que pagar por tu pedido: *S/ ${v.tarifa.toFixed(2)}*`);
+    } else {
+      lineas.push('🛵 Te escribo por la entrega de tu pedido');
+    }
+    if (v.direccion.trim()) lineas.push(`📍 Entrega en: ${v.direccion.trim()}`);
+    lineas.push('¡Gracias! 💚');
+    return lineas.join('\n');
+  }
 
   if (viajes.length === 0) {
     return (
@@ -54,40 +70,59 @@ export default function ViajeList({ viajes, onEliminar, titulo }: Props) {
                 −{fmtSoles(v.comision)} ({v.comisionPct}%)
               </span>
             </div>
+            {v.direccion && (
+              <p className="mt-1 truncate text-[10px] leading-snug text-slate-400" title={v.direccion}>
+                📍 {v.direccion}
+              </p>
+            )}
             {v.notas && (
               <p className="mt-1 truncate text-[10px] leading-snug text-slate-500" title={v.notas}>
-                📍 {v.notas.split('\n')[0]}
+                📝 {v.notas.split('\n')[0]}
               </p>
             )}
           </div>
 
-          {confirmarId === v.id ? (
-            <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            {v.celular.trim() && (
               <button
-                onClick={() => {
-                  onEliminar(v.id);
-                  setConfirmarId(null);
-                }}
-                className="rounded-lg bg-red-500/20 px-2 py-1.5 text-[11px] font-bold text-red-400"
+                onClick={() =>
+                  window.open(linkWhatsApp(normalizarCelular(v.celular), mensajeCobro(v)), '_blank')
+                }
+                className="rounded-lg bg-[#25D366]/15 p-2 text-[#25D366] transition-colors hover:bg-[#25D366]/25"
+                aria-label="Mandar mensaje de cobro por WhatsApp"
+                data-testid="boton-whatsapp-lista"
               >
-                Borrar
+                <MessageCircle size={16} />
               </button>
+            )}
+            {confirmarId === v.id ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    onEliminar(v.id);
+                    setConfirmarId(null);
+                  }}
+                  className="rounded-lg bg-red-500/20 px-2 py-1.5 text-[11px] font-bold text-red-400"
+                >
+                  Borrar
+                </button>
+                <button
+                  onClick={() => setConfirmarId(null)}
+                  className="rounded-lg bg-slate-700 px-2 py-1.5 text-[11px] font-bold text-slate-300"
+                >
+                  No
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={() => setConfirmarId(null)}
-                className="rounded-lg bg-slate-700 px-2 py-1.5 text-[11px] font-bold text-slate-300"
+                onClick={() => setConfirmarId(v.id)}
+                className="shrink-0 rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                aria-label="Eliminar viaje"
               >
-                No
+                <Trash2 size={16} />
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmarId(v.id)}
-              className="shrink-0 rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-              aria-label="Eliminar viaje"
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
+            )}
+          </div>
         </div>
       ))}
     </div>

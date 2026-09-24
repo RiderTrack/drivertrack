@@ -15,6 +15,7 @@ export const CONFIG_DEFECTO: ConfigDT = {
   yape: { numero: '', titular: '', qrBase64: '' },
   plin: { numero: '', titular: '', qrBase64: '' },
   geminiKey: '',
+  claudeKey: '',
 };
 
 export function fechaHoy(): string {
@@ -40,7 +41,11 @@ export function fechaBonita(f: string): string {
 export function cargarViajes(): Viaje[] {
   try {
     const raw = localStorage.getItem(K_VIAJES);
-    return raw ? (JSON.parse(raw) as Viaje[]) : [];
+    if (!raw) return [];
+    const lista = JSON.parse(raw) as Partial<Viaje>[];
+    // F-ID2.5: los viajes guardados antes de F-ID2.5 no tienen
+    // direccion/celular → se completan vacíos para que no rompan nada
+    return lista.map(v => ({ ...v, direccion: v.direccion ?? '', celular: v.celular ?? '' })) as Viaje[];
   } catch {
     return [];
   }
@@ -50,18 +55,43 @@ export function guardarViajes(v: Viaje[]): void {
   localStorage.setItem(K_VIAJES, JSON.stringify(v));
 }
 
+/** F-ID2.5: completa defaults y MIGRA la key de Claude si quedó pegada en el campo de Gemini. */
+export function normalizarConfig(c: Partial<ConfigDT>): ConfigDT {
+  // El campo geminiKey nació como "la key de IA que sea": si el usuario
+  // pegó ahí su token de Claude (sk-ant-…), se pasa a su propio campo
+  let geminiKey = (c.geminiKey ?? '').trim();
+  let claudeKey = (c.claudeKey ?? '').trim();
+  if (geminiKey.startsWith('sk-ant-') && !claudeKey) {
+    claudeKey = geminiKey;
+    geminiKey = '';
+  }
+  return {
+    ...CONFIG_DEFECTO,
+    ...c,
+    geminiKey,
+    claudeKey,
+    comisiones: { ...CONFIG_DEFECTO.comisiones, ...(c.comisiones ?? {}) },
+    yape: { ...CONFIG_DEFECTO.yape, ...(c.yape ?? {}) },
+    plin: { ...CONFIG_DEFECTO.plin, ...(c.plin ?? {}) },
+  };
+}
+
 export function cargarConfig(): ConfigDT {
   try {
     const raw = localStorage.getItem(K_CONFIG);
     if (!raw) return { ...CONFIG_DEFECTO };
     const c = JSON.parse(raw) as Partial<ConfigDT>;
-    return {
-      ...CONFIG_DEFECTO,
-      ...c,
-      comisiones: { ...CONFIG_DEFECTO.comisiones, ...(c.comisiones ?? {}) },
-      yape: { ...CONFIG_DEFECTO.yape, ...(c.yape ?? {}) },
-      plin: { ...CONFIG_DEFECTO.plin, ...(c.plin ?? {}) },
-    };
+    const normalizada = normalizarConfig(c);
+    // F-ID2.5: si la migración movió el token de Claude de campo (o
+    // recortó espacios), se persiste en el ACTO — el storage se
+    // autocura solo, sin esperar a que el usuario toque Ajustes
+    if (
+      normalizada.geminiKey !== (c.geminiKey ?? '').trim() ||
+      normalizada.claudeKey !== (c.claudeKey ?? '').trim()
+    ) {
+      guardarConfig(normalizada);
+    }
+    return normalizada;
   } catch {
     return { ...CONFIG_DEFECTO };
   }

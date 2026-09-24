@@ -1,16 +1,20 @@
 // ═══════════════════════════════════════════════════════════
-// ➕ DriverTrack — Formulario de viaje rápido (F-ID1 + F-ID2 + F-ID2.4)
+// ➕ DriverTrack — Formulario de viaje rápido (F-ID1 → F-ID2.5)
 // F-ID1: tarifa + % comisión → cálculo EN VIVO del neto.
-// F-ID2: 📷 escanear la dirección con una foto → Gemini llena
+// F-ID2: 📷 escanear la dirección con una foto → la IA llena
 //        el formulario solo (cliente, zona, tarifa, dirección).
 // F-ID2.4: 🖼️ botón GALERÍA — subir una captura de pantalla se
 //        lee mucho mejor que fotografiar la pantalla con la cámara.
+// F-ID2.5: escáner v2 — DIRECCIÓN y CELULAR con campos propios
+//        (antes quedaban perdidos dentro de Notas) + botón 💬
+//        WhatsApp que abre el chat del cliente con el mensaje de
+//        cobro listo (estilo QR de RiderTrack v2).
 // ═══════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, ImageUp, Loader2, Plus, X, Zap } from 'lucide-react';
+import { Camera, Check, ImageUp, Loader2, MessageCircle, Plus, X, Zap } from 'lucide-react';
 import { ConfigDT, OrigenViaje, ORIGENES, Viaje } from '../types';
 import { fechaHoy, horaAhora } from '../storage';
-import { fmtSoles, vibrar } from '../utils';
+import { fmtSoles, linkWhatsApp, normalizarCelular, vibrar } from '../utils';
 import { escanearDireccion } from '../services/escanerIA';
 
 interface Props {
@@ -25,6 +29,8 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
   const [comisionPct, setComisionPct] = useState<string>(String(config.comisiones.indrive));
   const [cliente, setCliente] = useState('');
   const [zona, setZona] = useState('');
+  const [direccion, setDireccion] = useState(''); // F-ID2.5: campo propio (antes vivía en notas)
+  const [celular, setCelular] = useState('');   // F-ID2.5: WhatsApp del cliente
   const [notas, setNotas] = useState('');
   const [error, setError] = useState('');
 
@@ -65,7 +71,7 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
 
   function abrirEscanner() {
     if (escaneando) return;
-    if (!config.geminiKey.trim()) {
+    if (!config.geminiKey.trim() && !config.claudeKey.trim()) {
       onNecesitaKey();
       return;
     }
@@ -80,7 +86,7 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
   // mejor que una foto a la pantalla (nítidas, sin reflejos ni moiré)
   function abrirGaleria() {
     if (escaneando) return;
-    if (!config.geminiKey.trim()) {
+    if (!config.geminiKey.trim() && !config.claudeKey.trim()) {
       onNecesitaKey();
       return;
     }
@@ -104,17 +110,22 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
       const { comprimirImagenParaOCR } = await import('../utils');
       const b64 = await comprimirImagenParaOCR(file);
       setFotoB64(b64);
-      const datos = await escanearDireccion(b64, config.geminiKey);
+      // F-ID2.5: se pasan LAS DOS keys — si Gemini revienta con error
+      // de cuenta (ej: sin créditos), Claude lo rescata solo
+      const datos = await escanearDireccion(b64, config.geminiKey, config.claudeKey);
 
       // Auto-llenado: solo sobreescribe lo que la foto realmente trajo
       if (datos.cliente) setCliente(datos.cliente);
       if (datos.zona) setZona(datos.zona);
       if (datos.tarifa !== null) setTarifa(String(datos.tarifa));
+      // F-ID2.5: dirección y celular a sus PROPIOS campos (antes
+      // terminaban aplastados dentro de notas)
+      if (datos.direccion) setDireccion(datos.direccion);
+      if (datos.telefono) setCelular(datos.telefono);
 
+      // La referencia y lo suelto sigue en notas (más corto ahora)
       const trozos: string[] = [];
-      if (datos.direccion) trozos.push(datos.direccion);
       if (datos.referencia) trozos.push(`Ref: ${datos.referencia}`);
-      if (datos.telefono) trozos.push(`📞 ${datos.telefono}`);
       if (trozos.length > 0) setNotas(trozos.join('\n'));
 
       setScanOk(true);
@@ -126,6 +137,46 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
     } finally {
       setEscaneando(false);
     }
+  }
+
+  // F-ID2.5: 💬 mensaje de cobro por WhatsApp — el mismo estilo del
+  // QR de RiderTrack v2 ("Hola cliente, te recuerdo el pago…")
+  function armarMensajeCobro(): string {
+    const nombre = cliente.trim() || 'estimado cliente';
+    const monto = parseFloat(tarifa) || 0;
+    const lineas: string[] = [`Hola ${nombre}! 👋`];
+    if (monto > 0) {
+      lineas.push(`🛵 Este es el monto que tienes que pagar por tu pedido: *S/ ${monto.toFixed(2)}*`);
+    } else {
+      lineas.push('🛵 Te escribo por la entrega de tu pedido');
+    }
+    if (direccion.trim()) lineas.push(`📍 Entrega en: ${direccion.trim()}`);
+    const yape = config.yape.numero.replace(/\D/g, '');
+    const plin = config.plin.numero.replace(/\D/g, '');
+    if (yape && plin) {
+      lineas.push(`💜 Yape: ${config.yape.numero}${config.yape.titular ? ` (${config.yape.titular})` : ''}`, `🔷 Plin: ${config.plin.numero}${config.plin.titular ? ` (${config.plin.titular})` : ''}`);
+    } else if (yape) {
+      lineas.push(`💜 Puedes pagarme por Yape al ${config.yape.numero}${config.yape.titular ? ` (${config.yape.titular})` : ''} o en efectivo al recibir`);
+    } else if (plin) {
+      lineas.push(`🔷 Puedes pagarme por Plin al ${config.plin.numero}${config.plin.titular ? ` (${config.plin.titular})` : ''} o en efectivo al recibir`);
+    } else {
+      lineas.push('💸 Puedes pagar en efectivo al recibir');
+    }
+    lineas.push('¡Gracias! 💚');
+    return lineas.join('\n');
+  }
+
+  // Abre WhatsApp con el mensaje listo — no envía solo: el driver
+  // lo revisa y apreta enviar (así como el QR de RiderTrack v2)
+  function mandarWhatsApp() {
+    const cel = normalizarCelular(celular);
+    if (!cel) {
+      setError('Poné el celular del cliente para mandarle el WhatsApp');
+      return;
+    }
+    setError('');
+    window.open(linkWhatsApp(cel, armarMensajeCobro()), '_blank');
+    vibrar(60);
   }
 
   function enviar() {
@@ -144,6 +195,8 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
       origen,
       cliente: cliente.trim(),
       zona: zona.trim(),
+      direccion: direccion.trim(),
+      celular: celular.trim(),
       tarifa: t,
       comisionPct: p,
       comision: c,
@@ -153,6 +206,8 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
     setTarifa('');
     setCliente('');
     setZona('');
+    setDireccion('');
+    setCelular('');
     setNotas('');
     limpiarEscaneo();
   }
@@ -340,12 +395,46 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
         />
       </div>
 
-      {/* Notas / dirección (se llena solo con el escaneo) */}
+      {/* F-ID2.5: dirección de entrega (campo propio, se llena con el escaneo) */}
+      <input
+        value={direccion}
+        onChange={e => setDireccion(e.target.value)}
+        placeholder="📍 Dirección de entrega (se llena con el escaneo)"
+        className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
+        data-testid="input-direccion"
+      />
+
+      {/* F-ID2.5: celular + botón WhatsApp lado a lado */}
+      <div className="mt-2 flex gap-2">
+        <input
+          value={celular}
+          onChange={e => setCelular(e.target.value)}
+          inputMode="tel"
+          placeholder="📱 Celular del cliente"
+          className="min-w-0 flex-1 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
+          data-testid="input-celular"
+        />
+        <button
+          onClick={mandarWhatsApp}
+          disabled={escaneando}
+          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#25D366] px-3 py-2.5 text-xs font-black text-slate-950 transition-all active:scale-[0.98] disabled:opacity-50"
+          data-testid="boton-whatsapp"
+        >
+          <MessageCircle size={16} /> Cobrar
+        </button>
+      </div>
+      {celular.trim() && (
+        <p className="mt-1 text-[10px] text-slate-500">
+          💬 El botón Cobrar abre el WhatsApp del cliente con el mensaje de pago listo (mismo estilo del QR de RiderTrack)
+        </p>
+      )}
+
+      {/* Notas / referencia (se llena solo con el escaneo) */}
       <textarea
         value={notas}
         onChange={e => setNotas(e.target.value)}
         rows={2}
-        placeholder="Dirección / referencia (se llena con el escaneo)"
+        placeholder="Referencia / notas (se llena con el escaneo)"
         className="mt-2 w-full resize-none rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
       />
 

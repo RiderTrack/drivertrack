@@ -11,6 +11,8 @@ export interface Viaje {
   origen: OrigenViaje;
   cliente: string;
   zona: string;
+  direccion: string;   // F-ID2.5: dirección de ENTREGA propia (antes vivía perdida en notas)
+  celular: string;     // F-ID2.5: WhatsApp del cliente → botón de cobro
   tarifa: number;      // lo que cobra la app / el cliente
   comisionPct: number; // % que se queda la plataforma
   comision: number;    // monto de la comisión
@@ -30,6 +32,7 @@ export interface ConfigDT {
   yape: Billetera;
   plin: Billetera;
   geminiKey: string;                        // F-ID2: key de AI Studio para el escáner (vive solo en el teléfono)
+  claudeKey: string;                        // F-ID2.5: token de Anthropic — el escáner lo usa de RESPALDO si Gemini falla
 }
 
 export interface ResumenDia {

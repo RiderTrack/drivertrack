@@ -94,6 +94,17 @@ export function linkWhatsApp(numero: string, texto: string): string {
   return `https://wa.me/${limpio}?text=${encodeURIComponent(texto)}`;
 }
 
+// F-ID2.5: celular peruano → formato wa.me. "987 654 321" o
+// "+51 987 654 321" → "51987654321". Si ya viene con código de otro
+// país (más de 11 dígitos) se respeta tal cual.
+export function normalizarCelular(crudo: string): string {
+  const digitos = (crudo ?? '').replace(/[^0-9]/g, '');
+  if (digitos.length === 9) return `51${digitos}`;       // 987654321 → 51987654321
+  if (digitos.length === 11 && digitos.startsWith('51')) return digitos; // ya estaba bien
+  if (digitos.length === 12 && digitos.startsWith('519')) return digitos.slice(0, 11); // 51987654321X raro
+  return digitos; // otro formato: se manda tal cual (wa.me decidirá)
+}
+
 export function descargarArchivo(nombre: string, contenido: string, tipo = 'application/json'): void {
   const blob = new Blob([contenido], { type: tipo });
   const url = URL.createObjectURL(blob);

@@ -1,7 +1,18 @@
 // ═══════════════════════════════════════════════════════════
-// 📷 DriverTrack — Escáner de dirección con IA (F-ID2 + F-ID2.1 + F-ID2.4)
+// 📷 DriverTrack — Escáner de dirección con IA (F-ID2 → F-ID2.5)
 // Foto del pedido → la IA lee cliente, dirección, zona,
 // referencia, teléfono y tarifa → el formulario se llena solo.
+//
+// F-ID2.5 — DOBLE key con RESPALDO automático:
+//   · Se pueden configurar AMBAS keys (Gemini + Claude).
+//     El escáner usa la que esté, y si Gemini falla con un error
+//     "de la cuenta" (sin créditos, quota, región…) cae SOLO a
+//     Claude y escanea igual. Sin volver al manuscrito.
+//   · Errores traducidos al español CLARO — el caso real: Gemini
+//     respondía "Your prepayment credits are depleted…" y el
+//     usuario veía un mamarracho en inglés que no entendía.
+//   · El prompt pide EXPLÍCITAMENTE el teléfono — necesaria para
+//     el botón de cobro por WhatsApp (F-ID2.5).
 //
 // F-ID2.4 — escáner a prueba de balas:
 //   · Sin responseSchema (los 3.x pensantes + schema a veces
@@ -44,6 +55,7 @@ export type CodigoErrorOcr =
   | 'api-bloqueada'
   | 'region'
   | 'quota'
+  | 'creditos'
   | 'red'
   | 'sin-datos'
   | 'desconocido';
@@ -62,6 +74,8 @@ export function mensajeErrorOcr(c: CodigoErrorOcr): string {
       return 'Gemini no está disponible desde tu región o red actual — probá con otra conexión o usá una key de Claude';
     case 'quota':
       return 'La key llegó a su límite del momento — reintentá en un rato';
+    case 'creditos':
+      return 'Tu key de Gemini se quedó SIN CRÉDITOS 💳 — crea una nueva gratis en aistudio.google.com/apikey o recargá en ai.studio → Billing. Si configuraste tu token de Claude, el escáner ya lo usó de respaldo';
     case 'red':
       return 'Sin internet o conexión lenta — revisá tu señal';
     case 'sin-datos':
@@ -99,7 +113,7 @@ Extrae los datos del ENVÍO con estas reglas:
 - direccion: la dirección de ENTREGA tal cual está escrita (avenida/calle/jirón, número, interior, departamento, manzana, lote). Si hay varias direcciones, la de entrega final.
 - zona: el distrito o zona (ej: San Miguel, La Perla, Cercado, SMP). Solo el nombre, sin "Distrito de".
 - referencia: el punto de referencia si aparece (ej: "frente a la bodega", "portón azul").
-- telefono: el celular del cliente si aparece (dígitos y espacios).
+- telefono: el celular del cliente si aparece (dígitos y espacios). BÚSALO BIEN: suele estar como "teléfono", "celular", "contacto" o en el propio chat. Es MUY importante para el cobro.
 - tarifa: el precio/tarifa del viaje SÍ Y SOLO SÍ aparece escrito explícitamente (ej: "S/ 8.50", "8 soles"). Solo el número ("8.50"). Si no aparece, "".
 
 REGLAS DE ORO:
@@ -204,6 +218,14 @@ async function llamarGemini(
       if (res.status === 400 && msg.includes('location is not supported'))
         throw new ErrorOcr('region', `gemini · ${modelo} · ${crudo}`);
 
+      // F-ID2.5: créditos prepago agotados (el error REAL que le salió al
+      // usuario en su teléfono: "Your prepayment credits are depleted…")
+      if (
+        (res.status === 400 || res.status === 402 || res.status === 403) &&
+        (msg.includes('prepayment') || msg.includes('credits are depleted') || msg.includes('billing'))
+      )
+        throw new ErrorOcr('creditos', `gemini · ${modelo} · ${crudo}`);
+
       // Modelo retirado o inexistente en esta cuenta → probar el siguiente de la cadena
       if (res.status === 404 || (res.status === 400 && (msg.includes('not found') || msg.includes('not supported')))) {
         ultimoError = new ErrorOcr('desconocido', `gemini · ${modelo} · ${crudo}`);
@@ -300,7 +322,6 @@ interface ResultadoIA {
 async function llamarIA(apiKey: string, p: PeticionIA): Promise<ResultadoIA> {
   const proveedor = detectarProveedor(apiKey);
   if (!proveedor) throw new ErrorOcr('formato-key');
-
   if (proveedor === 'gemini') {
     const parts: unknown[] = [{ text: p.prompt }];
     if (p.imagenB64) {
@@ -355,58 +376,141 @@ function parsearTarifa(crudo: string | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** F-ID2.5: errores de CUENTA — con estos, la key está muerta HOY
+ *  y reintentar no ayuda… pero la OTRA proveedora puede salvar el escaneo. */
+const ERRORES_RESCATABLES: CodigoErrorOcr[] = [
+  'creditos',
+  'quota',
+  'region',
+  'api-bloqueada',
+  'key-invalida',
+];
+
+function esErrorDeCuenta(c: CodigoErrorOcr): boolean {
+  return ERRORES_RESCATABLES.includes(c);
+}
+
 /**
  * 📷 El corazón de F-ID2: foto base64 (JPEG dataURL) → datos del viaje.
- * Funciona con key de Gemini (AIza… o AQ.…) o de Claude (sk-ant-…).
+ * F-ID2.5: acepta DOS keys (Gemini y Claude). Estrategia:
+ *   1. Si SOLO hay una → esa (comportamiento de siempre).
+ *   2. Si hay DOS → primero la GRATIS (Gemini); si revienta con un
+ *      error de cuenta (sin créditos, quota, región…) → Claude al
+ *      rescate, y el resultado llega como si nada (con aviso sutil).
  */
-export async function escanearDireccion(fotoBase64: string, apiKey: string): Promise<DatosEscaneados> {
-  const key = apiKey.trim();
-  if (!key) throw new ErrorOcr('sin-key');
-  if (!detectarProveedor(key)) throw new ErrorOcr('formato-key');
+export async function escanearDireccion(
+  fotoBase64: string,
+  geminiKey: string,
+  claudeKey?: string,
+): Promise<DatosEscaneados> {
+  const gKey = (geminiKey ?? '').trim();
+  const cKey = (claudeKey ?? '').trim();
 
-  const { texto } = await llamarIA(key, { prompt: PROMPT, imagenB64: fotoBase64 });
+  const hayG = !!detectarProveedor(gKey);
+  const hayC = !!detectarProveedor(cKey);
 
-  const d = parsearJsonTexto(texto);
-  const datos: DatosEscaneados = {
-    cliente: (d.cliente ?? '').trim(),
-    direccion: (d.direccion ?? '').trim(),
-    zona: (d.zona ?? '').trim(),
-    referencia: (d.referencia ?? '').trim(),
-    telefono: (d.telefono ?? '').trim(),
-    tarifa: parsearTarifa(d.tarifa),
-  };
-
-  if (!datos.cliente && !datos.direccion && !datos.zona && !datos.referencia && !datos.telefono && datos.tarifa === null) {
-    throw new ErrorOcr('sin-datos');
+  if (!hayG && !hayC) {
+    if (gKey || cKey) throw new ErrorOcr('formato-key');
+    throw new ErrorOcr('sin-key');
   }
-  return datos;
+
+  // Con las dos: primero Gemini (gratis), Claude de respaldo.
+  // Con una: esa. Sin Gemini: Claude directo.
+  const intentos: string[] = [];
+  if (hayG) intentos.push(gKey);
+  if (hayC) intentos.push(cKey);
+
+  let falloPrimario: ErrorOcr | null = null;
+
+  for (let i = 0; i < intentos.length; i++) {
+    try {
+      const { texto } = await llamarIA(intentos[i], { prompt: PROMPT, imagenB64: fotoBase64 });
+      const d = parsearJsonTexto(texto);
+      const datos: DatosEscaneados = {
+        cliente: (d.cliente ?? '').trim(),
+        direccion: (d.direccion ?? '').trim(),
+        zona: (d.zona ?? '').trim(),
+        referencia: (d.referencia ?? '').trim(),
+        telefono: (d.telefono ?? '').trim(),
+        tarifa: parsearTarifa(d.tarifa),
+      };
+      if (
+        !datos.cliente &&
+        !datos.direccion &&
+        !datos.zona &&
+        !datos.referencia &&
+        !datos.telefono &&
+        datos.tarifa === null
+      ) {
+        // La foto no tenía nada legible para ESTA proveedora — que la
+        // otra le ponga los ojos si queda alguna por probar
+        throw new ErrorOcr('sin-datos');
+      }
+      return datos;
+    } catch (e) {
+      const err = e instanceof ErrorOcr ? e : new ErrorOcr('desconocido');
+      const quedaSiguiente = i < intentos.length - 1;
+      // Error de la CUENTA (créditos, quota…) o foto ilegible, y hay
+      // otra proveedora por probar → el escaneo NO muere acá
+      if (quedaSiguiente && (esErrorDeCuenta(err.codigo) || err.codigo === 'sin-datos')) {
+        if (!falloPrimario) falloPrimario = err;
+        continue;
+      }
+      // Se acabaron los intentos (o el error no es rescatable). Qué
+      // mostrar: si el ÚLTIMO intento dice "foto ilegible" o "sin
+      // red", eso es lo que pasó hace 2 segundos → más útil. Si no,
+      // el fallo de la key PRINCIPAL es lo que el usuario puede
+      // arreglar (ej: Gemini sin créditos → arreglable gratis).
+      if (err.codigo === 'sin-datos' || err.codigo === 'red') throw err;
+      throw falloPrimario ?? err;
+    }
+  }
+
+  // Las dos keys fallaron con error de cuenta → el primero (el de la
+  // key principal) es el que el usuario puede arreglar
+  throw falloPrimario ?? new ErrorOcr('desconocido');
 }
 
 /**
  * Botón "Probar key" de Ajustes: mini llamada real → dice si funciona,
  * qué proveedor detectó y con qué modelo respondió. Auto-diagnóstico.
+ * F-ID2.5: prueba TODAS las keys configuradas, una por una.
  */
-export async function probarKeyIA(apiKey: string): Promise<{ ok: boolean; mensaje: string }> {
-  const key = apiKey.trim();
-  if (!key) return { ok: false, mensaje: 'Pegá la key primero' };
-  const proveedor = detectarProveedor(key);
-  if (!proveedor) return { ok: false, mensaje: mensajeErrorOcr('formato-key') };
-  const nombre = proveedor === 'gemini' ? 'Gemini' : 'Claude';
+export async function probarKeyIA(
+  geminiKey: string,
+  claudeKey?: string,
+): Promise<{ ok: boolean; mensaje: string }> {
+  const resultados: string[] = [];
+  let algunaOk = false;
 
-  try {
-    const { modelo } = await llamarIA(key, { prompt: 'Responde solo: ok' });
-    return { ok: true, mensaje: `Key ${nombre} funcionando ✅ (${modelo})` };
-  } catch (e) {
-    const codigo: CodigoErrorOcr = e instanceof ErrorOcr ? e.codigo : 'desconocido';
-    if (codigo === 'quota') {
-      return { ok: true, mensaje: 'La key SÍ funciona (ahora está en su límite de momento, en un rato escanea normal)' };
+  const keys: { key: string; nombre: string }[] = [];
+  const g = (geminiKey ?? '').trim();
+  const c = (claudeKey ?? '').trim();
+  if (g) keys.push({ key: g, nombre: detectarProveedor(g) === 'gemini' ? 'Gemini' : '¿Gemini?' });
+  if (c) keys.push({ key: c, nombre: detectarProveedor(c) === 'claude' ? 'Claude' : '¿Claude?' });
+
+  if (keys.length === 0) return { ok: false, mensaje: 'Pegá alguna key primero' };
+
+  for (const { key, nombre } of keys) {
+    const proveedor = detectarProveedor(key);
+    if (!proveedor) {
+      resultados.push(`❌ ${nombre}: formato raro — Gemini empieza con "AIza" o "AQ." · Claude con "sk-ant-"`);
+      continue;
     }
-    // F-ID2.2: la API respondió 200 pero el modelo contestó vacío →
-    // la key ANDA. Antes esto se reportaba como "no pude leer nada en
-    // la foto" y confundía (el ping no tiene ninguna foto)
-    if (codigo === 'sin-datos') {
-      return { ok: true, mensaje: `Key ${nombre} funcionando ✅ (el modelo respondió a medias, pero la key está OK — escaneá nomás)` };
+    try {
+      const { modelo } = await llamarIA(key, { prompt: 'Responde solo: ok' });
+      resultados.push(`✅ ${nombre} OK (${modelo})`);
+      algunaOk = true;
+    } catch (e) {
+      const codigo: CodigoErrorOcr = e instanceof ErrorOcr ? e.codigo : 'desconocido';
+      if (codigo === 'quota' || codigo === 'sin-datos') {
+        resultados.push(`✅ ${nombre} OK (ahora con límite de momento, en un rato va normal)`);
+        algunaOk = true;
+      } else {
+        resultados.push(`❌ ${nombre}: ${mensajeErrorOcr(codigo)}`);
+      }
     }
-    return { ok: false, mensaje: mensajeErrorOcr(codigo) };
   }
+
+  return { ok: algunaOk, mensaje: resultados.join(' · ') };
 }
