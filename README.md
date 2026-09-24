@@ -14,7 +14,7 @@ App hermana de [RiderTrack V2](https://github.com/RiderTrack/ridertrack-v2) — 
 - **💬 Cobrar por WhatsApp (F-ID2.5 → F-ID2.7)**: con el celular del cliente (se autollena con el yape si la foto no trae teléfono), el botón **Cobrar** abre su chat con el mensaje de pago **ordenado en bloques** (saludo / monto + entrega / cómo pagar / gracias) — también desde cada viaje guardado
 - **💜 Tu Yape guardado 1 vez (F-ID2.7)**: tarjeta en la pestaña Viajes → guardás tu número **una sola vez** y sale solo en **todos** los mensajes de cobro (no se borra al agregar más viajes) + **📋 vista previa del mensaje siempre visible** que se actualiza en vivo, estilo chat de WhatsApp
 - **📍 km GPS reales por viaje (F-ID3)**: apretás ▶ en un viaje de la lista y la app graba los **km y el tiempo REALES** mientras manejás (barra verde flotante con km en vivo + cronómetro) → al apretar ■ todo queda guardado EN ese viaje. Sobrevive recargas y el asesino de memoria de Android (resume solo), filtra el ruido del GPS (semáforo no suma metros fantasma) y si arrancás otro viaje, el anterior se guarda solo. La pantalla no se apaga mientras graba
-- **🗺️ Pestaña Mapa (F-ID3)**: las rutas del día dibujadas en un mapa real (calles 🗺️ o satélite 🛰️, gratis y sin API key), cada línea del color de su app, con 🟢 arranque y 🔴 llegada — tocás una línea y ves cliente, app, monto, km y duración. Abajo: **km totales, tiempo manejando y cuánto te pagó cada km** (S/ por km, contando solo la plata de los viajes grabados). Navegación por día para revisar lo de ayer
+- **🗺️ Pestaña Mapa (F-ID3 → F-ID3.1)**: las rutas del día dibujadas en un mapa real con el **mismo look que RiderTrack v2** — tiles oscuros elegantes 🌑 (o claro / satélite 🛰️, gratis y sin API key), líneas punteadas **animadas** del color de cada app, banderines 🏁 de arranque y llegada, popups oscuros y leyenda flotante con blur. Abajo: **km totales, tiempo manejando y cuánto te pagó cada km** (S/ por km, contando solo la plata de los viajes grabados). Navegación por día para revisar lo de ayer
 - **🌗 Modo claro/oscuro (F-ID2.3)** y **ajustes con autoguardado total** (los decimales de la comisión ya no se pierden)
 - **🗄️ Backup local**: exportá/importá todos tus datos en JSON (local-first, sin cuentas)
 
@@ -33,6 +33,8 @@ Descargá la APK desde [Actions → Build DriverTrack APK → artifacts](https:/
 | F-ID5 | Robot WhatsApp: mandar QR + monto al cliente automático | ⏳ |
 
 > F-ID2.x (mejoras del escáner): 2.1 keys nuevas + Claude · 2.2 autoguardado key · 2.3 decimales + tema · 2.4 galería + errores técnicos · 2.5 doble key con respaldo + WhatsApp de cobro · 2.6 nombre real (no confunde "C.1" con la persona) + yape del pedido · 2.7 tu Yape guardado 1 vez + mensaje ordenado + vista previa en vivo · **2.8 mensaje unificado: el botón 💬 de la lista manda EXACTAMENTE el mismo mensaje que el Cobrar de arriba**
+>
+> **F-ID3.1** 🎨: look RiderTrack v2 en el mapa — tiles ESRI Dark Gray por defecto (con capa de nombres), ciclo 🎨 Oscuro → Claro → Satélite, rutas punteadas con animación de flujo, banderines con borde blanco, popups/tooltips/zoom oscuros y leyenda flotante dentro del mapa.
 >
 > **F-ID3** 📍🗺️: grabación GPS por viaje (watchPosition + haversine con filtros anti-ruido: precisión >40 m se ignora, jitter <8 m no suma, saltos >5 km son glitches) + resume automático tras recarga + wake lock (la pantalla no se apaga) + mapa Leaflet con tiles OSM/Esri + S/ por km honesto (solo neto de viajes grabados)
 
