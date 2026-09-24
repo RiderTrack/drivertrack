@@ -188,9 +188,10 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
           <Bot size={14} /> Escáner de direcciones (IA)
         </p>
         <p className="mt-1 text-[11px] text-slate-400">
-          Le tomás una foto al pedido (captura, chat o nota a mano) y la IA llena el viaje sola: cliente, zona, tarifa y
-          dirección. Acepta <span className="font-bold text-emerald-400">Gemini</span> (gratis) o{' '}
-          <span className="font-bold text-sky-400">Claude</span> (de pago) — se detecta sola.
+          Tomale una foto o subí una captura del pedido (captura, chat o nota a mano) y la IA llena el viaje sola:
+          cliente, zona, tarifa y dirección. Acepta <span className="font-bold text-emerald-400">Gemini</span> (gratis)
+          o <span className="font-bold text-sky-400">Claude</span> (de pago) — se detecta sola. Con capturas de pantalla
+          (botón 🖼️ Galería en Viajes) funciona mejor que con foto a la pantalla.
         </p>
 
         <div className="mt-2">
@@ -348,7 +349,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </p>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.2.3 (F-ID2.3) — Trackverse · Lima, PE
+        DriverTrack v0.2.4 (F-ID2.4) — Trackverse · Lima, PE
       </p>
     </div>
   );

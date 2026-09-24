@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════════
-// ➕ DriverTrack — Formulario de viaje rápido (F-ID1 + F-ID2)
+// ➕ DriverTrack — Formulario de viaje rápido (F-ID1 + F-ID2 + F-ID2.4)
 // F-ID1: tarifa + % comisión → cálculo EN VIVO del neto.
 // F-ID2: 📷 escanear la dirección con una foto → Gemini llena
 //        el formulario solo (cliente, zona, tarifa, dirección).
+// F-ID2.4: 🖼️ botón GALERÍA — subir una captura de pantalla se
+//        lee mucho mejor que fotografiar la pantalla con la cámara.
 // ═══════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, Loader2, Plus, X, Zap } from 'lucide-react';
+import { Camera, Check, ImageUp, Loader2, Plus, X, Zap } from 'lucide-react';
 import { ConfigDT, OrigenViaje, ORIGENES, Viaje } from '../types';
 import { fechaHoy, horaAhora } from '../storage';
 import { fmtSoles, vibrar } from '../utils';
@@ -32,7 +34,10 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
   const [fotoGrande, setFotoGrande] = useState(false);
   const [scanOk, setScanOk] = useState(false);
   const [scanError, setScanError] = useState('');
+  const [scanDetalle, setScanDetalle] = useState('');   // F-ID2.4: pista técnica del error
+  const [fuenteScan, setFuenteScan] = useState<'camara' | 'galeria' | null>(null);
   const inputFoto = useRef<HTMLInputElement>(null);
+  const inputGaleria = useRef<HTMLInputElement>(null);
 
   // Al cambiar de origen, precarga el % default de esa plataforma
   useEffect(() => {
@@ -53,7 +58,9 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
     setFotoGrande(false);
     setScanOk(false);
     setScanError('');
+    setScanDetalle('');
     if (inputFoto.current) inputFoto.current.value = '';
+    if (inputGaleria.current) inputGaleria.current.value = '';
   }
 
   function abrirEscanner() {
@@ -63,8 +70,25 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
       return;
     }
     setScanError('');
+    setScanDetalle('');
     setScanOk(false);
+    setFuenteScan('camara');
     inputFoto.current?.click();
+  }
+
+  // F-ID2.4: subir una captura desde la galería — la IA las lee mucho
+  // mejor que una foto a la pantalla (nítidas, sin reflejos ni moiré)
+  function abrirGaleria() {
+    if (escaneando) return;
+    if (!config.geminiKey.trim()) {
+      onNecesitaKey();
+      return;
+    }
+    setScanError('');
+    setScanDetalle('');
+    setScanOk(false);
+    setFuenteScan('galeria');
+    inputGaleria.current?.click();
   }
 
   async function alElegirFoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -74,6 +98,7 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
 
     setEscaneando(true);
     setScanError('');
+    setScanDetalle('');
     setScanOk(false);
     try {
       const { comprimirImagenParaOCR } = await import('../utils');
@@ -96,6 +121,7 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
       vibrar(80);
     } catch (err) {
       setScanError(err instanceof Error ? err.message : 'Algo falló escaneando — probá de nuevo');
+      setScanDetalle((err as Error & { detalle?: string }).detalle ?? '');
       // La foto queda de guía para escribir a mano
     } finally {
       setEscaneando(false);
@@ -149,28 +175,59 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
           className="hidden"
           data-testid="input-escanear"
         />
-        <button
-          onClick={abrirEscanner}
-          disabled={escaneando}
-          className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-black transition-all active:scale-[0.98] ${
-            escaneando
-              ? 'bg-emerald-500/20 text-emerald-300'
-              : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
-          }`}
-          data-testid="boton-escanear"
-        >
-          {escaneando ? (
-            <>
-              <Loader2 size={18} className="animate-spin" /> Leyendo la dirección…
-            </>
-          ) : (
-            <>
-              <Camera size={18} /> Escanear dirección
-            </>
-          )}
-        </button>
+        {/* F-ID2.4: input SIN capture → abre la galería / archivos */}
+        <input
+          ref={inputGaleria}
+          type="file"
+          accept="image/*"
+          onChange={alElegirFoto}
+          className="hidden"
+          data-testid="input-galeria"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={abrirEscanner}
+            disabled={escaneando}
+            className={`flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-black transition-all active:scale-[0.98] ${
+              escaneando && fuenteScan === 'camara'
+                ? 'bg-emerald-500/20 text-emerald-300'
+                : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
+            }`}
+            data-testid="boton-escanear"
+          >
+            {escaneando && fuenteScan === 'camara' ? (
+              <>
+                <Loader2 size={18} className="animate-spin" /> Leyendo…
+              </>
+            ) : (
+              <>
+                <Camera size={18} /> Cámara
+              </>
+            )}
+          </button>
+          <button
+            onClick={abrirGaleria}
+            disabled={escaneando}
+            className={`flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-black transition-all active:scale-[0.98] ${
+              escaneando && fuenteScan === 'galeria'
+                ? 'bg-emerald-500/20 text-emerald-300'
+                : 'border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+            }`}
+            data-testid="boton-galeria"
+          >
+            {escaneando && fuenteScan === 'galeria' ? (
+              <>
+                <Loader2 size={18} className="animate-spin" /> Leyendo…
+              </>
+            ) : (
+              <>
+                <ImageUp size={18} /> Galería
+              </>
+            )}
+          </button>
+        </div>
         <p className="mt-1.5 text-center text-[10px] text-slate-400">
-          Foto de la dirección (captura, chat o nota) → la IA llena el viaje
+          La IA llena el viaje sola — con una 🖼️ captura de pantalla funciona mejor que con foto a la pantalla
         </p>
 
         {/* Foto de guía + resultado */}
@@ -207,9 +264,20 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
           </div>
         )}
         {scanError && (
-          <p className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400" data-testid="scan-error">
+          <div className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400" data-testid="scan-error">
             {scanError}
-          </p>
+            {scanDetalle && (
+              <span
+                className="mt-1 block break-words font-mono text-[10px] text-red-400/60"
+                data-testid="scan-detalle"
+              >
+                [{scanDetalle}]
+              </span>
+            )}
+            <span className="mt-1.5 block text-[11px] text-slate-400">
+              💡 Tip: una captura de pantalla nítida (Galería) se lee mucho mejor que una foto a la pantalla
+            </span>
+          </div>
         )}
       </div>
 

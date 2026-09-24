@@ -1,7 +1,19 @@
 // ═══════════════════════════════════════════════════════════
-// 📷 DriverTrack — Escáner de dirección con IA (F-ID2 + F-ID2.1)
+// 📷 DriverTrack — Escáner de dirección con IA (F-ID2 + F-ID2.1 + F-ID2.4)
 // Foto del pedido → la IA lee cliente, dirección, zona,
 // referencia, teléfono y tarifa → el formulario se llena solo.
+//
+// F-ID2.4 — escáner a prueba de balas:
+//   · Sin responseSchema (los 3.x pensantes + schema a veces
+//     responden VACÍO o rechazan el payload) — basta el prompt
+//     + responseMimeType + parser robusto
+//   · Un modelo que responde vacío ya NO aborta la cadena:
+//     se prueba el siguiente
+//   · Si el JSON quedó atrapado en los "pensamientos" (thoughts),
+//     se rescata de ahí
+//   · Timeout 45s con foto (red lenta) / 20s sin foto
+//   · Errores con DETALLE técnico (proveedor + modelo + mensaje
+//     de la API) para saber QUÉ pasó en el teléfono real
 //
 // F-ID2.1 — DOS proveedores, se detectan solos por la key:
 //   · Gemini → "AIza…" (clásica) o "AQ.…" (formato NUEVO que
@@ -53,7 +65,7 @@ export function mensajeErrorOcr(c: CodigoErrorOcr): string {
     case 'red':
       return 'Sin internet o conexión lenta — revisá tu señal';
     case 'sin-datos':
-      return 'No pude leer nada en la foto 🤔 — escribí a mano con la foto de guía';
+      return 'No pude leer nada en la foto 🤔 — probá con una captura nítida desde 🖼️ Galería, o escribí a mano con la foto de guía';
     default:
       return 'Algo falló escaneando — probá de nuevo o escribí a mano';
   }
@@ -73,7 +85,10 @@ const MODELOS_GEMINI = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.5-f
 const MODELOS_CLAUDE = ['claude-haiku-4-5-20251001', 'claude-3-5-haiku-20241022'];
 const URL_GEMINI = 'https://generativelanguage.googleapis.com/v1beta/models';
 const URL_CLAUDE = 'https://api.anthropic.com/v1/messages';
-const TIMEOUT_MS = 25000;
+// F-ID2.4: con foto el upload puede ser ~500 KB — en red lenta
+// necesita aire. Sin foto (ping de Probar key) basta algo corto.
+const TIMEOUT_CON_IMAGEN = 45000;
+const TIMEOUT_SIN_IMAGEN = 20000;
 
 const PROMPT = `Eres el escáner de pedidos de DriverTrack, una app de delivery motorizado en Lima, Perú.
 
@@ -97,18 +112,10 @@ const PROMPT_CLAUDE_EXTRA = `
 
 IMPORTANTE: Respondé ÚNICAMENTE con el objeto JSON, sin markdown, sin \`\`\` y sin explicaciones.`;
 
-const SCHEMA = {
-  type: 'object',
-  properties: {
-    cliente: { type: 'string' },
-    direccion: { type: 'string' },
-    zona: { type: 'string' },
-    referencia: { type: 'string' },
-    telefono: { type: 'string' },
-    tarifa: { type: 'string' },
-  },
-  propertyOrdering: ['cliente', 'direccion', 'zona', 'referencia', 'telefono', 'tarifa'],
-};
+// F-ID2.4: se SACÓ el responseSchema de los escaneos. Con los modelos
+// 3.x "pensantes", el modo estructurado a veces devuelve vacío o
+// rechaza el payload según la cuenta. El prompt ya exige el JSON y
+// parsearJsonTexto() lo extrae aunque venga con texto alrededor.
 
 /** "data:image/jpeg;base64,XXXX" → "XXXX" (las APIs quieren el base64 pelado). */
 function base64Limpio(b64: string): string {
@@ -118,9 +125,11 @@ function base64Limpio(b64: string): string {
 
 class ErrorOcr extends Error {
   codigo: CodigoErrorOcr;
-  constructor(codigo: CodigoErrorOcr) {
+  detalle?: string; // F-ID2.4: pista técnica — proveedor · modelo · mensaje de la API
+  constructor(codigo: CodigoErrorOcr, detalle?: string) {
     super(mensajeErrorOcr(codigo));
     this.codigo = codigo;
+    this.detalle = detalle;
   }
 }
 
@@ -136,9 +145,9 @@ interface RespuestaClaude {
   error?: { message?: string };
 }
 
-async function fetchConTimeout(url: string, headers: Record<string, string>, body: unknown) {
+async function fetchConTimeout(url: string, headers: Record<string, string>, body: unknown, ms: number) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), ms);
   try {
     return await fetch(url, {
       method: 'POST',
@@ -152,8 +161,13 @@ async function fetchConTimeout(url: string, headers: Record<string, string>, bod
 }
 
 /** Llama a Gemini probando la cadena de modelos. Auth por HEADER (validado con keys AQ. y AIza). */
-async function llamarGemini(apiKey: string, body: Record<string, unknown>): Promise<{ texto: string; modelo: string }> {
+async function llamarGemini(
+  apiKey: string,
+  body: Record<string, unknown>,
+  ms: number,
+): Promise<{ texto: string; modelo: string }> {
   let ultimoError: ErrorOcr = new ErrorOcr('desconocido');
+  const probados: string[] = [];
 
   for (const modelo of MODELOS_GEMINI) {
     try {
@@ -161,43 +175,66 @@ async function llamarGemini(apiKey: string, body: Record<string, unknown>): Prom
         `${URL_GEMINI}/${modelo}:generateContent`,
         { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body,
+        ms,
       );
       const data = (await res.json().catch(() => ({}))) as RespuestaGemini;
+      probados.push(modelo);
 
       if (res.status === 200) {
-        // F-ID2.2: se filtran los "pensamientos" (thought:true) de los
-        // modelos 3.x — antes se pegaban junto a la respuesta y rompían el JSON
-        const texto =
-          data.candidates?.[0]?.content?.parts?.filter(p => !p.thought).map(p => p.text ?? '').join('') ?? '';
-        if (!texto) throw new ErrorOcr('sin-datos');
-        return { texto, modelo };
+        const parts = data.candidates?.[0]?.content?.parts ?? [];
+        // F-ID2.2: se filtran los "pensamientos" (thought:true) — antes
+        // se pegaban junto a la respuesta y rompían el JSON
+        const texto = parts.filter(p => !p.thought).map(p => p.text ?? '').join('');
+        // F-ID2.4: si el modelo se "pensó" toda la respuesta, el JSON puede
+        // haber quedado dentro de los thoughts → último recurso: unir TODO
+        const rescate = texto || parts.map(p => p.text ?? '').join('');
+        if (!rescate) {
+          // F-ID2.4: antes un 200 vacío ABORTABA la cadena completa con
+          // "sin-datos" sin probar los otros modelos. Ahora: soft-fail.
+          ultimoError = new ErrorOcr('sin-datos', `gemini · ${modelo} · respondió vacío`);
+          continue;
+        }
+        return { texto: rescate, modelo };
       }
 
       const msg = (data.error?.message ?? '').toLowerCase();
+      const crudo = (data.error?.message ?? '').slice(0, 140);
 
       // Región/red bloqueada para Gemini (no depende del modelo → no seguir probando)
-      if (res.status === 400 && msg.includes('location is not supported')) throw new ErrorOcr('region');
+      if (res.status === 400 && msg.includes('location is not supported'))
+        throw new ErrorOcr('region', `gemini · ${modelo} · ${crudo}`);
 
       // Modelo retirado o inexistente en esta cuenta → probar el siguiente de la cadena
       if (res.status === 404 || (res.status === 400 && (msg.includes('not found') || msg.includes('not supported')))) {
-        ultimoError = new ErrorOcr('desconocido');
+        ultimoError = new ErrorOcr('desconocido', `gemini · ${modelo} · ${crudo}`);
         continue;
       }
-      if (res.status === 400 && (msg.includes('api key') || msg.includes('api_key'))) throw new ErrorOcr('key-invalida');
-      if (res.status === 403) throw new ErrorOcr('api-bloqueada');
-      if (res.status === 429) throw new ErrorOcr('quota');
-      throw new ErrorOcr('desconocido');
+      if (res.status === 400 && (msg.includes('api key') || msg.includes('api_key')))
+        throw new ErrorOcr('key-invalida', `gemini · ${modelo} · ${crudo}`);
+      if (res.status === 403) throw new ErrorOcr('api-bloqueada', `gemini · ${modelo} · ${crudo}`);
+      if (res.status === 429) throw new ErrorOcr('quota', `gemini · ${modelo} · ${crudo}`);
+      // Otro error rarito: antes abortaba TODO — ahora prueba el siguiente modelo
+      ultimoError = new ErrorOcr('desconocido', `gemini · ${modelo} · ${crudo}`);
+      continue;
     } catch (e) {
       if (e instanceof ErrorOcr) throw e;
-      ultimoError = new ErrorOcr('red'); // abort / red caída / DNS
+      // F-ID2.4: si la red se cortó (timeout/abort/DNS), los OTROS modelos
+      // también van a fallar con la misma red → no perder 45s por modelo
+      throw new ErrorOcr('red', 'la conexión se cortó mandando la foto (¿señal muy lenta?)');
     }
   }
+  if (!ultimoError.detalle) ultimoError.detalle = `probados: ${probados.join(', ')}`;
   throw ultimoError;
 }
 
 /** Llama a Claude (Anthropic Messages API) — la misma que usa rudy-bot. */
-async function llamarClaude(apiKey: string, body: Record<string, unknown>): Promise<{ texto: string; modelo: string }> {
+async function llamarClaude(
+  apiKey: string,
+  body: Record<string, unknown>,
+  ms: number,
+): Promise<{ texto: string; modelo: string }> {
   let ultimoError: ErrorOcr = new ErrorOcr('desconocido');
+  const probados: string[] = [];
 
   for (const modelo of MODELOS_CLAUDE) {
     try {
@@ -211,34 +248,40 @@ async function llamarClaude(apiKey: string, body: Record<string, unknown>): Prom
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         { ...body, model: modelo },
+        ms,
       );
       const data = (await res.json().catch(() => ({}))) as RespuestaClaude;
+      probados.push(modelo);
 
       if (res.status === 200) {
-        const texto = (data.content ?? [])
-          .filter(b => b.type === 'text')
-          .map(b => b.text ?? '')
-          .join('');
-        if (!texto) throw new ErrorOcr('sin-datos');
+        const texto = (data.content ?? []).filter(b => b.type === 'text').map(b => b.text ?? '').join('');
+        if (!texto) {
+          // F-ID2.4: 200 vacío → soft-fail, probar el siguiente modelo
+          ultimoError = new ErrorOcr('sin-datos', `claude · ${modelo} · respondió vacío`);
+          continue;
+        }
         return { texto, modelo };
       }
 
       const msg = (data.error?.message ?? '').toLowerCase();
+      const crudo = (data.error?.message ?? '').slice(0, 140);
 
       // Modelo no disponible en esta cuenta → probar el siguiente
       if (res.status === 404 || (res.status === 400 && msg.includes('model'))) {
-        ultimoError = new ErrorOcr('desconocido');
+        ultimoError = new ErrorOcr('desconocido', `claude · ${modelo} · ${crudo}`);
         continue;
       }
-      if (res.status === 401) throw new ErrorOcr('key-invalida');
-      if (res.status === 429) throw new ErrorOcr('quota');
-      if (res.status === 403) throw new ErrorOcr('api-bloqueada');
-      throw new ErrorOcr('desconocido');
+      if (res.status === 401) throw new ErrorOcr('key-invalida', `claude · ${modelo} · ${crudo}`);
+      if (res.status === 429) throw new ErrorOcr('quota', `claude · ${modelo} · ${crudo}`);
+      if (res.status === 403) throw new ErrorOcr('api-bloqueada', `claude · ${modelo} · ${crudo}`);
+      ultimoError = new ErrorOcr('desconocido', `claude · ${modelo} · ${crudo}`);
+      continue;
     } catch (e) {
       if (e instanceof ErrorOcr) throw e;
-      ultimoError = new ErrorOcr('red');
+      throw new ErrorOcr('red', 'la conexión se cortó mandando la foto (¿señal muy lenta?)');
     }
   }
+  if (!ultimoError.detalle) ultimoError.detalle = `probados: ${probados.join(', ')}`;
   throw ultimoError;
 }
 
@@ -267,13 +310,14 @@ async function llamarIA(apiKey: string, p: PeticionIA): Promise<ResultadoIA> {
       contents: [{ role: 'user', parts }],
       generationConfig: {
         temperature: 0,
-        ...(p.imagenB64
-          ? { responseMimeType: 'application/json', responseSchema: SCHEMA }
-          : {}), // ping SIN maxOutputTokens: los modelos 3.x "piensan" y un
-        // tope chico se lo gastan pensando → respuesta vacía (bug F-ID2.2)
+        // F-ID2.4: SIN responseSchema — con los modelos 3.x "pensantes", el
+        // modo estructurado a veces responde VACÍO o rechaza el payload.
+        // responseMimeType + prompt estricto + parser robusto alcanzan.
+        // (Y sin maxOutputTokens tampoco: bug F-ID2.2 del ping mudo)
+        ...(p.imagenB64 ? { responseMimeType: 'application/json' } : {}),
       },
     };
-    const r = await llamarGemini(apiKey, body);
+    const r = await llamarGemini(apiKey, body, p.imagenB64 ? TIMEOUT_CON_IMAGEN : TIMEOUT_SIN_IMAGEN);
     return { ...r, proveedor };
   }
 
@@ -290,7 +334,7 @@ async function llamarIA(apiKey: string, p: PeticionIA): Promise<ResultadoIA> {
     temperature: 0,
     messages: [{ role: 'user', content }],
   };
-  const r = await llamarClaude(apiKey, body);
+  const r = await llamarClaude(apiKey, body, p.imagenB64 ? TIMEOUT_CON_IMAGEN : TIMEOUT_SIN_IMAGEN);
   return { ...r, proveedor };
 }
 
