@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // 🛠️ DriverTrack — Utilidades (formato, vibración, imagen, compartir)
 // ═══════════════════════════════════════════════════════════
+import type { ConfigDT } from './types';
 
 export function fmtSoles(n: number): string {
   return 'S/ ' + n.toFixed(2);
@@ -92,6 +93,56 @@ export async function compartirTexto(titulo: string, texto: string): Promise<'sh
 export function linkWhatsApp(numero: string, texto: string): string {
   const limpio = numero.replace(/[^0-9]/g, '');
   return `https://wa.me/${limpio}?text=${encodeURIComponent(texto)}`;
+}
+
+// F-ID2.8: 💬 mensaje de cobro por WhatsApp — UNA sola función COMPARTIDA
+// para los DOS botones: el "Cobrar" del formulario de arriba y el
+// botoncito 💬 de la lista de abajo. Antes la lista tenía una copia vieja
+// (solo saludo + monto) y el cliente recibía mensajes distintos según
+// qué botón apretabas. Ahora es EXACTAMENTE el mismo mensaje ordenado
+// por bloques: saludo → pedido (monto + entrega) → cómo pagar (TU
+// Yape/Plin guardados) → gracias.
+export function armarMensajeCobro(
+  datos: { cliente: string; monto: number; direccion: string },
+  config: ConfigDT,
+): string {
+  const nombre = datos.cliente.trim() || 'estimado cliente';
+  const yape = config.yape.numero.trim();
+  const plin = config.plin.numero.trim();
+  const titularYape = config.yape.titular.trim();
+  const titularPlin = config.plin.titular.trim();
+
+  const lineas: string[] = [`Hola ${nombre}! 👋`, ''];
+
+  // Bloque 1 — el pedido
+  if (datos.monto > 0) {
+    lineas.push(`🛵 Monto a pagar por tu pedido: *S/ ${datos.monto.toFixed(2)}*`);
+  } else {
+    lineas.push('🛵 Te escribo por la entrega de tu pedido');
+  }
+  if (datos.direccion.trim()) lineas.push(`📍 Entrega en: ${datos.direccion.trim()}`);
+  lineas.push('');
+
+  // Bloque 2 — cómo pagar (TU Yape guardado, no el del pedido)
+  if (yape && plin) {
+    lineas.push('💜 Puedes pagarme por Yape:');
+    lineas.push(`📱 *${yape}*${titularYape ? ` (${titularYape})` : ''}`);
+    lineas.push(`🔷 O por Plin: *${plin}*${titularPlin ? ` (${titularPlin})` : ''}`);
+    lineas.push('💵 O en efectivo al recibir');
+  } else if (yape) {
+    lineas.push('💜 Puedes pagarme por Yape:');
+    lineas.push(`📱 *${yape}*${titularYape ? ` (${titularYape})` : ''}`);
+    lineas.push('💵 O en efectivo al recibir');
+  } else if (plin) {
+    lineas.push('🔷 Puedes pagarme por Plin:');
+    lineas.push(`📱 *${plin}*${titularPlin ? ` (${titularPlin})` : ''}`);
+    lineas.push('💵 O en efectivo al recibir');
+  } else {
+    lineas.push('💸 Pago en efectivo al recibir');
+  }
+
+  lineas.push('', '¡Gracias! 💚');
+  return lineas.join('\n');
 }
 
 // F-ID2.5: celular peruano → formato wa.me. "987 654 321" o

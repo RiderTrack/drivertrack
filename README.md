@@ -30,7 +30,7 @@ Descargá la APK desde [Actions → Build DriverTrack APK → artifacts](https:/
 | F-ID4 | Estadísticas: zonas, horas de oro, precio piso | ⏳ |
 | F-ID5 | Robot WhatsApp: mandar QR + monto al cliente automático | ⏳ |
 
-> F-ID2.x (mejoras del escáner): 2.1 keys nuevas + Claude · 2.2 autoguardado key · 2.3 decimales + tema · 2.4 galería + errores técnicos · 2.5 doble key con respaldo + WhatsApp de cobro · 2.6 nombre real (no confunde "C.1" con la persona) + yape del pedido · **2.7 tu Yape guardado 1 vez + mensaje ordenado + vista previa en vivo**
+> F-ID2.x (mejoras del escáner): 2.1 keys nuevas + Claude · 2.2 autoguardado key · 2.3 decimales + tema · 2.4 galería + errores técnicos · 2.5 doble key con respaldo + WhatsApp de cobro · 2.6 nombre real (no confunde "C.1" con la persona) + yape del pedido · 2.7 tu Yape guardado 1 vez + mensaje ordenado + vista previa en vivo · **2.8 mensaje unificado: el botón 💬 de la lista manda EXACTAMENTE el mismo mensaje que el Cobrar de arriba**
 
 ## 🧱 Stack
 

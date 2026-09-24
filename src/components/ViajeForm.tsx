@@ -25,7 +25,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Check, ImageUp, Loader2, MessageCircle, Plus, X, Zap } from 'lucide-react';
 import { ConfigDT, OrigenViaje, ORIGENES, Viaje } from '../types';
 import { fechaHoy, horaAhora } from '../storage';
-import { fmtSoles, linkWhatsApp, normalizarCelular, vibrar } from '../utils';
+import { armarMensajeCobro, fmtSoles, linkWhatsApp, normalizarCelular, vibrar } from '../utils';
 import { escanearDireccion } from '../services/escanerIA';
 
 interface Props {
@@ -165,48 +165,15 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
     }
   }
 
-  // F-ID2.5 → F-ID2.7: 💬 mensaje de cobro por WhatsApp — el mismo
-  // estilo del QR de RiderTrack v2, ahora ORDENADO en bloques:
-  // saludo → pedido (monto + entrega) → cómo pagar (TU Yape) → gracias
-  function armarMensajeCobro(): string {
-    const nombre = cliente.trim() || 'estimado cliente';
-    const monto = parseFloat(tarifa) || 0;
-    const yape = config.yape.numero.trim();
-    const plin = config.plin.numero.trim();
-    const titularYape = config.yape.titular.trim();
-    const titularPlin = config.plin.titular.trim();
-
-    const lineas: string[] = [`Hola ${nombre}! 👋`, ''];
-
-    // Bloque 1 — el pedido
-    if (monto > 0) {
-      lineas.push(`🛵 Monto a pagar por tu pedido: *S/ ${monto.toFixed(2)}*`);
-    } else {
-      lineas.push('🛵 Te escribo por la entrega de tu pedido');
-    }
-    if (direccion.trim()) lineas.push(`📍 Entrega en: ${direccion.trim()}`);
-    lineas.push('');
-
-    // Bloque 2 — cómo pagar (TU Yape guardado, no el del pedido)
-    if (yape && plin) {
-      lineas.push('💜 Puedes pagarme por Yape:');
-      lineas.push(`📱 *${yape}*${titularYape ? ` (${titularYape})` : ''}`);
-      lineas.push(`🔷 O por Plin: *${plin}*${titularPlin ? ` (${titularPlin})` : ''}`);
-      lineas.push('💵 O en efectivo al recibir');
-    } else if (yape) {
-      lineas.push('💜 Puedes pagarme por Yape:');
-      lineas.push(`📱 *${yape}*${titularYape ? ` (${titularYape})` : ''}`);
-      lineas.push('💵 O en efectivo al recibir');
-    } else if (plin) {
-      lineas.push('🔷 Puedes pagarme por Plin:');
-      lineas.push(`📱 *${plin}*${titularPlin ? ` (${titularPlin})` : ''}`);
-      lineas.push('💵 O en efectivo al recibir');
-    } else {
-      lineas.push('💸 Pago en efectivo al recibir');
-    }
-
-    lineas.push('', '¡Gracias! 💚');
-    return lineas.join('\n');
+  // F-ID2.5 → F-ID2.8: 💬 mensaje de cobro por WhatsApp — delega a la
+  // función COMPARTIDA de utils: el botoncito 💬 de la lista de abajo
+  // manda EXACTAMENTE este mismo mensaje (antes mandaba uno viejo
+  // sin tu Yape). Bloques: saludo → pedido → cómo pagar (TU Yape) → gracias
+  function armarMensaje(): string {
+    return armarMensajeCobro(
+      { cliente, monto: parseFloat(tarifa) || 0, direccion },
+      config,
+    );
   }
 
   // F-ID2.7: guarda TU Yape en el config — queda para todos los
@@ -238,7 +205,7 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
       return;
     }
     setError('');
-    window.open(linkWhatsApp(cel, armarMensajeCobro()), '_blank');
+    window.open(linkWhatsApp(cel, armarMensaje()), '_blank');
     vibrar(60);
   }
 
@@ -565,7 +532,7 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
           💬 Así le va a llegar a tu cliente
         </p>
         <div className="mt-1.5 max-h-44 overflow-y-auto whitespace-pre-wrap rounded-xl rounded-tl-sm bg-[#005C4B] px-3 py-2 text-[12px] leading-relaxed text-white">
-          <TextoWhatsApp texto={armarMensajeCobro()} />
+          <TextoWhatsApp texto={armarMensaje()} />
         </div>
         <p className="mt-1 text-[10px] text-slate-500">
           Se arma solo con los datos del viaje — el botón Cobrar lo manda tal cual al WhatsApp del cliente

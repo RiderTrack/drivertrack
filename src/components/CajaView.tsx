@@ -131,7 +131,12 @@ export default function CajaView({ viajes, config, onEliminar, onCobrar, onToast
       </div>
 
       {/* Lista del día */}
-      <ViajeList viajes={delDia} onEliminar={onEliminar} titulo={`del ${fechaBonita(fecha)}`} />
+      <ViajeList
+        viajes={delDia}
+        onEliminar={onEliminar}
+        titulo={`del ${fechaBonita(fecha)}`}
+        config={config}
+      />
     </div>
   );
 }

@@ -175,7 +175,7 @@ export default function App() {
                 mostrarToast('Pegá tu key de IA en 🤖 Escáner — Gemini gratis, 1 minuto');
               }}
             />
-            <ViajeList viajes={delDia} onEliminar={eliminarViaje} titulo="de hoy" />
+            <ViajeList viajes={delDia} onEliminar={eliminarViaje} titulo="de hoy" config={config} />
           </>
         )}
 

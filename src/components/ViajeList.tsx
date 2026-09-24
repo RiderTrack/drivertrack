@@ -1,36 +1,27 @@
 // ═══════════════════════════════════════════════════════════
-// 📋 DriverTrack — Lista de viajes del día (F-ID2.5 → F-ID2.6)
+// 📋 DriverTrack — Lista de viajes del día (F-ID2.5 → F-ID2.8)
 // Muestra la dirección de entrega propia y, si hay celular,
 // el botón 💬 para mandar el mensaje de cobro por WhatsApp.
 // F-ID2.6: también el 💜 yape del pedido (quién pagó).
+// F-ID2.8: el botón 💬 manda EXACTAMENTE el mismo mensaje del
+// botón Cobrar de arriba (misma función compartida: saludo +
+// monto + entrega + TU Yape + gracias) — antes mandaba una
+// copia vieja sin el bloque de pago.
 // ═══════════════════════════════════════════════════════════
 import { useState } from 'react';
 import { MessageCircle, Trash2 } from 'lucide-react';
-import { nombreOrigen, Viaje } from '../types';
-import { fmtSoles, linkWhatsApp, normalizarCelular } from '../utils';
+import { ConfigDT, nombreOrigen, Viaje } from '../types';
+import { armarMensajeCobro, fmtSoles, linkWhatsApp, normalizarCelular } from '../utils';
 
 interface Props {
   viajes: Viaje[]; // solo los del día mostrado
   onEliminar: (id: string) => void;
   titulo: string;
+  config: ConfigDT; // F-ID2.8: tu Yape/Plin guardados van en el mensaje
 }
 
-export default function ViajeList({ viajes, onEliminar, titulo }: Props) {
+export default function ViajeList({ viajes, onEliminar, titulo, config }: Props) {
   const [confirmarId, setConfirmarId] = useState<string | null>(null);
-
-  // F-ID2.5: el mismo mensaje de cobro del formulario (estilo QR)
-  function mensajeCobro(v: Viaje): string {
-    const nombre = v.cliente.trim() || 'estimado cliente';
-    const lineas: string[] = [`Hola ${nombre}! 👋`];
-    if (v.tarifa > 0) {
-      lineas.push(`🛵 Este es el monto que tienes que pagar por tu pedido: *S/ ${v.tarifa.toFixed(2)}*`);
-    } else {
-      lineas.push('🛵 Te escribo por la entrega de tu pedido');
-    }
-    if (v.direccion.trim()) lineas.push(`📍 Entrega en: ${v.direccion.trim()}`);
-    lineas.push('¡Gracias! 💚');
-    return lineas.join('\n');
-  }
 
   if (viajes.length === 0) {
     return (
@@ -96,7 +87,18 @@ export default function ViajeList({ viajes, onEliminar, titulo }: Props) {
             {v.celular.trim() && (
               <button
                 onClick={() =>
-                  window.open(linkWhatsApp(normalizarCelular(v.celular), mensajeCobro(v)), '_blank')
+                  window.open(
+                    linkWhatsApp(
+                      normalizarCelular(v.celular),
+                      // F-ID2.8: MISMA función compartida que el botón
+                      // Cobrar de arriba — mensaje completo por bloques
+                      armarMensajeCobro(
+                        { cliente: v.cliente, monto: v.tarifa, direccion: v.direccion },
+                        config,
+                      ),
+                    ),
+                    '_blank',
+                  )
                 }
                 className="rounded-lg bg-[#25D366]/15 p-2 text-[#25D366] transition-colors hover:bg-[#25D366]/25"
                 aria-label="Mandar mensaje de cobro por WhatsApp"
