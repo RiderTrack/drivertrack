@@ -82,6 +82,19 @@ export default function App() {
     vibrar(120);
   }
 
+  // F-ID2.7: el Yape PROPIO del driver se guarda UNA vez (desde la
+  // pestaña Viajes, sin ir a Ajustes) y sale en TODOS los mensajes de
+  // cobro — antes lo terminaba escribiendo a mano por cada cliente
+  function guardarMiYape(numero: string, titular: string) {
+    const c: ConfigDT = {
+      ...config,
+      yape: { ...config.yape, numero: numero.trim(), titular: titular.trim() },
+    };
+    guardarConfig(c);
+    setConfig(c);
+    mostrarToast('💜 Tu Yape quedó guardado — ya sale en todos los cobros');
+  }
+
   function eliminarViaje(id: string) {
     setViajes(prev => prev.filter(v => v.id !== id));
     mostrarToast('Viaje eliminado 🗑️');
@@ -156,6 +169,7 @@ export default function App() {
             <ViajeForm
               config={config}
               onAgregar={agregarViaje}
+              onGuardarMiYape={guardarMiYape}
               onNecesitaKey={() => {
                 setTab('ajustes');
                 mostrarToast('Pegá tu key de IA en 🤖 Escáner — Gemini gratis, 1 minuto');

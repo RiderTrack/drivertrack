@@ -15,6 +15,12 @@
 //        + si la foto no trae teléfono, el celular se llena con el
 //        número del yape (en Perú el yape ES el celular del cliente).
 // ═══════════════════════════════════════════════════════════
+// F-ID2.7: 💜 TU Yape se guarda UNA vez (tarjeta en esta misma
+//        pantalla) y sale solo en TODOS los mensajes de cobro — antes
+//        el número propio se terminaba escribiendo a mano por cada
+//        cliente y al apretar "Agregar viaje" desaparecía. Además:
+//        📋 vista previa del mensaje SIEMPRE visible (en vivo, nunca
+//        desaparece) y mensaje reorganizado en bloques.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Check, ImageUp, Loader2, MessageCircle, Plus, X, Zap } from 'lucide-react';
 import { ConfigDT, OrigenViaje, ORIGENES, Viaje } from '../types';
@@ -25,10 +31,11 @@ import { escanearDireccion } from '../services/escanerIA';
 interface Props {
   config: ConfigDT;
   onAgregar: (v: Viaje) => void;
+  onGuardarMiYape: (numero: string, titular: string) => void; // F-ID2.7: tu Yape queda guardado 1 sola vez
   onNecesitaKey: () => void; // F-ID2: te manda a Ajustes si no hay key Gemini
 }
 
-export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
+export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesitaKey }: Props) {
   const [origen, setOrigen] = useState<OrigenViaje>('indrive');
   const [tarifa, setTarifa] = useState('');
   const [comisionPct, setComisionPct] = useState<string>(String(config.comisiones.indrive));
@@ -40,6 +47,11 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
   const [yapeNumero, setYapeNumero] = useState(''); // F-ID2.6: 980811297 — para saber quién pagó
   const [notas, setNotas] = useState('');
   const [error, setError] = useState('');
+
+  // ── F-ID2.7: TU Yape para cobrar (se guarda 1 vez, vive en config) ──
+  const [miYapeNum, setMiYapeNum] = useState('');
+  const [miYapeTitular, setMiYapeTitular] = useState('');
+  const [editarMiYape, setEditarMiYape] = useState(false);
 
   // ── F-ID2: estado del escáner ──
   const [escaneando, setEscaneando] = useState(false);
@@ -153,31 +165,68 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
     }
   }
 
-  // F-ID2.5: 💬 mensaje de cobro por WhatsApp — el mismo estilo del
-  // QR de RiderTrack v2 ("Hola cliente, te recuerdo el pago…")
+  // F-ID2.5 → F-ID2.7: 💬 mensaje de cobro por WhatsApp — el mismo
+  // estilo del QR de RiderTrack v2, ahora ORDENADO en bloques:
+  // saludo → pedido (monto + entrega) → cómo pagar (TU Yape) → gracias
   function armarMensajeCobro(): string {
     const nombre = cliente.trim() || 'estimado cliente';
     const monto = parseFloat(tarifa) || 0;
-    const lineas: string[] = [`Hola ${nombre}! 👋`];
+    const yape = config.yape.numero.trim();
+    const plin = config.plin.numero.trim();
+    const titularYape = config.yape.titular.trim();
+    const titularPlin = config.plin.titular.trim();
+
+    const lineas: string[] = [`Hola ${nombre}! 👋`, ''];
+
+    // Bloque 1 — el pedido
     if (monto > 0) {
-      lineas.push(`🛵 Este es el monto que tienes que pagar por tu pedido: *S/ ${monto.toFixed(2)}*`);
+      lineas.push(`🛵 Monto a pagar por tu pedido: *S/ ${monto.toFixed(2)}*`);
     } else {
       lineas.push('🛵 Te escribo por la entrega de tu pedido');
     }
     if (direccion.trim()) lineas.push(`📍 Entrega en: ${direccion.trim()}`);
-    const yape = config.yape.numero.replace(/\D/g, '');
-    const plin = config.plin.numero.replace(/\D/g, '');
+    lineas.push('');
+
+    // Bloque 2 — cómo pagar (TU Yape guardado, no el del pedido)
     if (yape && plin) {
-      lineas.push(`💜 Yape: ${config.yape.numero}${config.yape.titular ? ` (${config.yape.titular})` : ''}`, `🔷 Plin: ${config.plin.numero}${config.plin.titular ? ` (${config.plin.titular})` : ''}`);
+      lineas.push('💜 Puedes pagarme por Yape:');
+      lineas.push(`📱 *${yape}*${titularYape ? ` (${titularYape})` : ''}`);
+      lineas.push(`🔷 O por Plin: *${plin}*${titularPlin ? ` (${titularPlin})` : ''}`);
+      lineas.push('💵 O en efectivo al recibir');
     } else if (yape) {
-      lineas.push(`💜 Puedes pagarme por Yape al ${config.yape.numero}${config.yape.titular ? ` (${config.yape.titular})` : ''} o en efectivo al recibir`);
+      lineas.push('💜 Puedes pagarme por Yape:');
+      lineas.push(`📱 *${yape}*${titularYape ? ` (${titularYape})` : ''}`);
+      lineas.push('💵 O en efectivo al recibir');
     } else if (plin) {
-      lineas.push(`🔷 Puedes pagarme por Plin al ${config.plin.numero}${config.plin.titular ? ` (${config.plin.titular})` : ''} o en efectivo al recibir`);
+      lineas.push('🔷 Puedes pagarme por Plin:');
+      lineas.push(`📱 *${plin}*${titularPlin ? ` (${titularPlin})` : ''}`);
+      lineas.push('💵 O en efectivo al recibir');
     } else {
-      lineas.push('💸 Puedes pagar en efectivo al recibir');
+      lineas.push('💸 Pago en efectivo al recibir');
     }
-    lineas.push('¡Gracias! 💚');
+
+    lineas.push('', '¡Gracias! 💚');
     return lineas.join('\n');
+  }
+
+  // F-ID2.7: guarda TU Yape en el config — queda para todos los
+  // clientes, ya no se escribe por pedido (y no se borra al agregar viaje)
+  function guardarMiYape() {
+    const digitos = miYapeNum.replace(/\D/g, '');
+    if (digitos.length < 6) {
+      setError('Poné tu número de Yape (9 dígitos)');
+      return;
+    }
+    setError('');
+    onGuardarMiYape(miYapeNum, miYapeTitular);
+    setEditarMiYape(false);
+    vibrar(60);
+  }
+
+  function abrirEditorMiYape() {
+    setMiYapeNum(config.yape.numero);
+    setMiYapeTitular(config.yape.titular);
+    setEditarMiYape(true);
   }
 
   // Abre WhatsApp con el mensaje listo — no envía solo: el driver
@@ -447,12 +496,88 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
         </p>
       )}
 
-      {/* F-ID2.6: yape del pedido — "Mk yape 980811297" → nombre + número */}
+      {/* ── F-ID2.7: TU Yape para cobrar — se guarda 1 vez, sale en TODOS los mensajes ── */}
+      {!config.yape.numero.trim() || editarMiYape ? (
+        <div className="mt-2 rounded-xl border border-violet-500/30 bg-violet-500/10 p-3" data-testid="tarjeta-mi-yape">
+          <p className="text-xs font-bold text-violet-300">💜 Tu Yape para cobrar</p>
+          <p className="mt-0.5 text-[10px] leading-snug text-slate-400">
+            Guardalo <b className="text-violet-200">una sola vez</b> y sale solo en el mensaje de cobro de{' '}
+            <b className="text-violet-200">todos</b> tus clientes — no lo volvés a escribir.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <input
+              value={miYapeNum}
+              onChange={e => setMiYapeNum(e.target.value)}
+              inputMode="tel"
+              placeholder="Tu número (ej. 987 654 321)"
+              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-violet-400"
+              data-testid="input-mi-yape-num"
+            />
+            <input
+              value={miYapeTitular}
+              onChange={e => setMiYapeTitular(e.target.value)}
+              placeholder="Tu nombre (opcional)"
+              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-violet-400"
+              data-testid="input-mi-yape-titular"
+            />
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={guardarMiYape}
+              className="flex-1 rounded-xl bg-violet-500 py-2.5 text-xs font-black text-white transition-all active:scale-[0.98]"
+              data-testid="boton-guardar-mi-yape"
+            >
+              Guardar mi Yape 💜
+            </button>
+            {editarMiYape && (
+              <button
+                onClick={() => setEditarMiYape(false)}
+                className="rounded-xl bg-slate-700 px-4 py-2.5 text-xs font-bold text-slate-300"
+                data-testid="boton-cancelar-mi-yape"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div
+          className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-violet-500/20 bg-violet-500/10 px-3 py-2"
+          data-testid="mi-yape-guardado"
+        >
+          <p className="min-w-0 text-[11px] leading-snug text-violet-200">
+            💜 Tu Yape: <b className="text-violet-100">{config.yape.numero}</b>
+            {config.yape.titular.trim() && <> ({config.yape.titular.trim()})</>} — va en <b>todos</b> los cobros
+          </p>
+          <button
+            onClick={abrirEditorMiYape}
+            className="shrink-0 text-[10px] font-bold text-violet-300 underline decoration-dotted"
+            data-testid="boton-cambiar-mi-yape"
+          >
+            cambiar
+          </button>
+        </div>
+      )}
+
+      {/* ── F-ID2.7: vista previa del mensaje — SIEMPRE visible, en vivo ── */}
+      <div className="mt-2 rounded-xl border border-[#25D366]/25 bg-[#25D366]/5 p-3" data-testid="preview-mensaje">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-400/80">
+          💬 Así le va a llegar a tu cliente
+        </p>
+        <div className="mt-1.5 max-h-44 overflow-y-auto whitespace-pre-wrap rounded-xl rounded-tl-sm bg-[#005C4B] px-3 py-2 text-[12px] leading-relaxed text-white">
+          <TextoWhatsApp texto={armarMensajeCobro()} />
+        </div>
+        <p className="mt-1 text-[10px] text-slate-500">
+          Se arma solo con los datos del viaje — el botón Cobrar lo manda tal cual al WhatsApp del cliente
+        </p>
+      </div>
+
+      {/* F-ID2.6: yape del PEDIDO — con el que pagó el CLIENTE (distinto del tuyo) */}
       <div className="mt-2 grid grid-cols-2 gap-2">
         <input
           value={yapeNombre}
           onChange={e => setYapeNombre(e.target.value)}
-          placeholder="💜 Yape: nombre"
+          placeholder="💜 Yape del pedido: nombre"
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
           data-testid="input-yape-nombre"
         />
@@ -460,14 +585,14 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
           value={yapeNumero}
           onChange={e => setYapeNumero(e.target.value)}
           inputMode="numeric"
-          placeholder="💜 Yape: número"
+          placeholder="💜 Yape del pedido: número"
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
           data-testid="input-yape-numero"
         />
       </div>
       {(yapeNombre.trim() || yapeNumero.trim()) && (
         <p className="mt-1 text-[10px] text-slate-500">
-          💜 Yape del pedido — para saber quién pagó (se guarda con el viaje)
+          💜 Con este yape PAGÓ tu cliente (se guarda con el viaje) — tu Yape para cobrar va más arriba, guardado
         </p>
       )}
 
@@ -510,5 +635,23 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
         </span>
       </button>
     </div>
+  );
+}
+
+// F-ID2.7: pinta el mensaje tal como lo muestra WhatsApp dentro del
+// chat — *texto* se ve en negrita (la vista previa manda los asteriscos
+// tal cual y WhatsApp los convierte en negrita del otro lado)
+function TextoWhatsApp({ texto }: { texto: string }) {
+  const partes = texto.split(/(\*[^*\n]+\*)/g);
+  return (
+    <>
+      {partes.map((p, i) =>
+        p.length > 2 && p.startsWith('*') && p.endsWith('*') ? (
+          <b key={i}>{p.slice(1, -1)}</b>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </>
   );
 }

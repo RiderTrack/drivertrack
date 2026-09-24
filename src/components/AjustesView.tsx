@@ -22,11 +22,13 @@ function PanelBilletera({
   titulo,
   emoji,
   billetera,
+  nota,
   onChange,
 }: {
   titulo: string;
   emoji: string;
   billetera: Billetera;
+  nota?: string;
   onChange: (b: Billetera) => void;
 }) {
   const inputQR = useRef<HTMLInputElement>(null);
@@ -47,6 +49,7 @@ function PanelBilletera({
       <p className="text-xs font-bold text-slate-300">
         {emoji} {titulo}
       </p>
+      {nota && <p className="mt-0.5 text-[10px] leading-snug text-slate-400">{nota}</p>}
       <div className="mt-2 grid grid-cols-2 gap-2">
         <input
           value={billetera.numero}
@@ -304,8 +307,14 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
         </div>
       </section>
 
-      {/* Billeteras */}
-      <PanelBilletera titulo="Yape" emoji="💜" billetera={yape} onChange={setYape} />
+      {/* Billeteras — el Yape sale en TODOS los mensajes de cobro (F-ID2.7) */}
+      <PanelBilletera
+        titulo="Yape"
+        emoji="💜"
+        billetera={yape}
+        nota="Este número sale solo en el mensaje de cobro de WhatsApp (botón Cobrar en Viajes) — también lo podés guardar ahí una vez."
+        onChange={setYape}
+      />
       <PanelBilletera titulo="Plin" emoji="🔷" billetera={plin} onChange={setPlin} />
 
       {/* Backup */}
@@ -371,7 +380,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </p>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.2.6 (F-ID2.6) — Trackverse · Lima, PE
+        DriverTrack v0.2.7 (F-ID2.7) — Trackverse · Lima, PE
       </p>
     </div>
   );

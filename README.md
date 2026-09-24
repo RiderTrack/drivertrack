@@ -11,7 +11,8 @@ App hermana de [RiderTrack V2](https://github.com/RiderTrack/ridertrack-v2) — 
 - **💰 Caja**: resumen por día (bruto / comisiones / neto), navegación por fecha, exportar CSV, compartir resumen por WhatsApp
 - **💜 Cobrar con Yape/Plin**: panel con tu QR + número + monto, listo para mandar al cliente
 - **📷 Escanear pedido (F-ID2 → F-ID2.6)**: foto o captura del pedido → la IA llena el viaje sola: cliente, zona, tarifa, **dirección y celular con campos propios** + **💜 yape del pedido (nombre y número)**. Doble key: **Gemini gratis + token de Claude de respaldo** — si Gemini se queda sin créditos, Claude lo rescata solo. Errores traducidos al español claro. La IA ya no confunde el código de la calle ("C.1") con el nombre del cliente, y si la foto trae "Mk yape 987…", Mk ES el cliente
-- **💬 Cobrar por WhatsApp (F-ID2.5)**: con el celular del cliente (se autollena con el yape si la foto no trae teléfono), el botón **Cobrar** abre su chat con el mensaje de pago listo (estilo QR de RiderTrack): saludo, monto a pagar, dirección y tu Yape/Plin — también desde cada viaje guardado
+- **💬 Cobrar por WhatsApp (F-ID2.5 → F-ID2.7)**: con el celular del cliente (se autollena con el yape si la foto no trae teléfono), el botón **Cobrar** abre su chat con el mensaje de pago **ordenado en bloques** (saludo / monto + entrega / cómo pagar / gracias) — también desde cada viaje guardado
+- **💜 Tu Yape guardado 1 vez (F-ID2.7)**: tarjeta en la pestaña Viajes → guardás tu número **una sola vez** y sale solo en **todos** los mensajes de cobro (no se borra al agregar más viajes) + **📋 vista previa del mensaje siempre visible** que se actualiza en vivo, estilo chat de WhatsApp
 - **🌗 Modo claro/oscuro (F-ID2.3)** y **ajustes con autoguardado total** (los decimales de la comisión ya no se pierden)
 - **🗄️ Backup local**: exportá/importá todos tus datos en JSON (local-first, sin cuentas)
 
@@ -29,7 +30,7 @@ Descargá la APK desde [Actions → Build DriverTrack APK → artifacts](https:/
 | F-ID4 | Estadísticas: zonas, horas de oro, precio piso | ⏳ |
 | F-ID5 | Robot WhatsApp: mandar QR + monto al cliente automático | ⏳ |
 
-> F-ID2.x (mejoras del escáner): 2.1 keys nuevas + Claude · 2.2 autoguardado key · 2.3 decimales + tema · 2.4 galería + errores técnicos · 2.5 doble key con respaldo + WhatsApp de cobro · **2.6 nombre real (no confunde "C.1" con la persona) + yape del pedido**
+> F-ID2.x (mejoras del escáner): 2.1 keys nuevas + Claude · 2.2 autoguardado key · 2.3 decimales + tema · 2.4 galería + errores técnicos · 2.5 doble key con respaldo + WhatsApp de cobro · 2.6 nombre real (no confunde "C.1" con la persona) + yape del pedido · **2.7 tu Yape guardado 1 vez + mensaje ordenado + vista previa en vivo**
 
 ## 🧱 Stack
 
