@@ -21,12 +21,87 @@
 //        cliente y al apretar "Agregar viaje" desaparecía. Además:
 //        📋 vista previa del mensaje SIEMPRE visible (en vivo, nunca
 //        desaparece) y mensaje reorganizado en bloques.
+// ═══════════════════════════════════════════════════════════
+// F-ID3.2: 🧲 BORRADOR — todo lo escrito (o escaneado) sobrevive
+//        cambios de pestaña, recargas y el asesino de memoria de
+//        Android: antes al pasar a Mapa y volver, el formulario
+//        aparecía VACÍO y se perdía la dirección escaneada.
+//        📍 UBICAR POR COORDENADAS — botón junto a la dirección
+//        que abre un mini-mapa (pin arrastrable / mi GPS / lat-lng
+//        a mano, igual que RiderTrack v2).
+//        📞 LLAMAR — botón junto a Cobrar que abre el marcador.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, ImageUp, Loader2, MessageCircle, Plus, X, Zap } from 'lucide-react';
+import { Camera, Check, ImageUp, Loader2, MapPin, MessageCircle, Phone, Plus, X, Zap } from 'lucide-react';
 import { ConfigDT, OrigenViaje, ORIGENES, Viaje } from '../types';
 import { fechaHoy, horaAhora } from '../storage';
-import { armarMensajeCobro, fmtSoles, linkWhatsApp, normalizarCelular, vibrar } from '../utils';
+import { armarMensajeCobro, fmtSoles, linkLlamada, linkWhatsApp, normalizarCelular, vibrar } from '../utils';
 import { escanearDireccion } from '../services/escanerIA';
+import UbicarModal from './UbicarModal';
+
+// ── F-ID3.2: el BORRADOR del formulario (vive en localStorage) ──
+interface BorradorViaje {
+  origen: OrigenViaje;
+  tarifa: string;
+  comisionPct: string;
+  cliente: string;
+  zona: string;
+  direccion: string;
+  celular: string;
+  yapeNombre: string;
+  yapeNumero: string;
+  notas: string;
+  coordenadas?: { lat: number; lng: number } | null;
+}
+
+const K_BORRADOR = 'dt_borrador_v1';
+
+function leerBorrador(): BorradorViaje | null {
+  try {
+    const raw = localStorage.getItem(K_BORRADOR);
+    if (!raw) return null;
+    const b = JSON.parse(raw) as Partial<BorradorViaje>;
+    if (!b || typeof b !== 'object') return null;
+    // vacío de verdad (solo defaults) → ni lo restauramos
+    const algoEscrito =
+      (b.tarifa ?? '').trim() || (b.cliente ?? '').trim() || (b.direccion ?? '').trim() ||
+      (b.celular ?? '').trim() || (b.zona ?? '').trim() || (b.yapeNombre ?? '').trim() ||
+      (b.yapeNumero ?? '').trim() || (b.notas ?? '').trim() || b.coordenadas;
+    if (!algoEscrito) return null;
+    return {
+      origen: (['indrive', 'rappi', 'pedidosya', 'directo'].includes(b.origen ?? '')
+        ? b.origen
+        : 'indrive') as OrigenViaje,
+      tarifa: b.tarifa ?? '',
+      comisionPct: b.comisionPct ?? '',
+      cliente: b.cliente ?? '',
+      zona: b.zona ?? '',
+      direccion: b.direccion ?? '',
+      celular: b.celular ?? '',
+      yapeNombre: b.yapeNombre ?? '',
+      yapeNumero: b.yapeNumero ?? '',
+      notas: b.notas ?? '',
+      coordenadas: b.coordenadas ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function guardarBorrador(b: BorradorViaje): void {
+  try {
+    localStorage.setItem(K_BORRADOR, JSON.stringify(b));
+  } catch {
+    /* sin espacio: seguirá sin borrador, no es crítico */
+  }
+}
+
+function borrarBorrador(): void {
+  try {
+    localStorage.removeItem(K_BORRADOR);
+  } catch {
+    /* nada */
+  }
+}
 
 interface Props {
   config: ConfigDT;
@@ -36,17 +111,27 @@ interface Props {
 }
 
 export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesitaKey }: Props) {
-  const [origen, setOrigen] = useState<OrigenViaje>('indrive');
-  const [tarifa, setTarifa] = useState('');
-  const [comisionPct, setComisionPct] = useState<string>(String(config.comisiones.indrive));
-  const [cliente, setCliente] = useState('');
-  const [zona, setZona] = useState('');
-  const [direccion, setDireccion] = useState(''); // F-ID2.5: campo propio (antes vivía en notas)
-  const [celular, setCelular] = useState('');   // F-ID2.5: WhatsApp del cliente
-  const [yapeNombre, setYapeNombre] = useState(''); // F-ID2.6: "Mk" en "Mk yape 980811297"
-  const [yapeNumero, setYapeNumero] = useState(''); // F-ID2.6: 980811297 — para saber quién pagó
-  const [notas, setNotas] = useState('');
+  // F-ID3.2: el formulario arranca desde el BORRADOR guardado (si
+  // había algo escrito/escaneado, NO se pierde al cambiar de pestaña)
+  const borradorInicial = useRef(leerBorrador()).current;
+  const [origen, setOrigen] = useState<OrigenViaje>(borradorInicial?.origen ?? 'indrive');
+  const [tarifa, setTarifa] = useState(borradorInicial?.tarifa ?? '');
+  const [comisionPct, setComisionPct] = useState<string>(
+    borradorInicial?.comisionPct ?? String(config.comisiones.indrive),
+  );
+  const [cliente, setCliente] = useState(borradorInicial?.cliente ?? '');
+  const [zona, setZona] = useState(borradorInicial?.zona ?? '');
+  const [direccion, setDireccion] = useState(borradorInicial?.direccion ?? ''); // F-ID2.5: campo propio (antes vivía en notas)
+  const [celular, setCelular] = useState(borradorInicial?.celular ?? '');   // F-ID2.5: WhatsApp del cliente
+  const [yapeNombre, setYapeNombre] = useState(borradorInicial?.yapeNombre ?? ''); // F-ID2.6: "Mk" en "Mk yape 980811297"
+  const [yapeNumero, setYapeNumero] = useState(borradorInicial?.yapeNumero ?? ''); // F-ID2.6: 980811297 — para saber quién pagó
+  const [notas, setNotas] = useState(borradorInicial?.notas ?? '');
   const [error, setError] = useState('');
+  // F-ID3.2: coordenadas de la entrega (pin en el mapa)
+  const [coordenadas, setCoordenadas] = useState<{ lat: number; lng: number } | null>(
+    borradorInicial?.coordenadas ?? null,
+  );
+  const [ubicarAbierto, setUbicarAbierto] = useState(false);
 
   // ── F-ID2.7: TU Yape para cobrar (se guarda 1 vez, vive en config) ──
   const [miYapeNum, setMiYapeNum] = useState('');
@@ -64,10 +149,27 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
   const inputFoto = useRef<HTMLInputElement>(null);
   const inputGaleria = useRef<HTMLInputElement>(null);
 
-  // Al cambiar de origen, precarga el % default de esa plataforma
+  // Al cambiar de origen, precarga el % default de esa plataforma.
+  // F-ID3.2: salvo la PRIMERA vez si vino borrador — el % del
+  // borrador gana (sino siempre lo pisaría con el default).
+  const saltearPrecarga = useRef(!!borradorInicial);
   useEffect(() => {
+    if (saltearPrecarga.current) {
+      saltearPrecarga.current = false;
+      return;
+    }
     setComisionPct(String(config.comisiones[origen] ?? 0));
   }, [origen, config.comisiones]);
+
+  // F-ID3.2: 🧲 el borrador se guarda SOLO en cada cambio — así
+  // cambiar de pestaña (o que Android mate la app) no pierde nada
+  useEffect(() => {
+    guardarBorrador({
+      origen, tarifa, comisionPct, cliente, zona, direccion, celular,
+      yapeNombre, yapeNumero, notas, coordenadas,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origen, tarifa, comisionPct, cliente, zona, direccion, celular, yapeNombre, yapeNumero, notas, coordenadas]);
 
   const { comision, neto } = useMemo(() => {
     const t = parseFloat(tarifa) || 0;
@@ -209,6 +311,17 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
     vibrar(60);
   }
 
+  // F-ID3.2: 📞 llamada directa — abre el marcador del teléfono
+  function llamarCliente() {
+    const cel = normalizarCelular(celular);
+    if (!cel) {
+      setError('Poné el celular del cliente para llamarlo');
+      return;
+    }
+    setError('');
+    window.open(linkLlamada(celular), '_self');
+  }
+
   function enviar() {
     if (!puedeEnviar) {
       setError('Poné la tarifa del viaje');
@@ -231,6 +344,7 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
       yapeNumero: yapeNumero.trim(),
       kmGPS: 0,        // F-ID3: se llena al grabar el recorrido con el botón 📍
       duracionSeg: 0,  // F-ID3: ídem
+      ...(coordenadas ? { coordenadas } : {}), // F-ID3.2: pin de la entrega
       tarifa: t,
       comisionPct: p,
       comision: c,
@@ -245,6 +359,8 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
     setYapeNombre('');
     setYapeNumero('');
     setNotas('');
+    setCoordenadas(null);
+    borrarBorrador(); // F-ID3.2: el viaje ya está guardado — el borrador se limpia
     limpiarEscaneo();
   }
 
@@ -431,16 +547,50 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
         />
       </div>
 
-      {/* F-ID2.5: dirección de entrega (campo propio, se llena con el escaneo) */}
-      <input
-        value={direccion}
-        onChange={e => setDireccion(e.target.value)}
-        placeholder="📍 Dirección de entrega (se llena con el escaneo)"
-        className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
-        data-testid="input-direccion"
-      />
+      {/* F-ID2.5: dirección de entrega (campo propio, se llena con el escaneo)
+          F-ID3.2: + botón 📍 para marcar la entrega EN EL MAPA (por
+          coordenadas — pin arrastrable / mi GPS / a mano) */}
+      <div className="mt-2 flex gap-2">
+        <input
+          value={direccion}
+          onChange={e => setDireccion(e.target.value)}
+          placeholder="📍 Dirección de entrega (se llena con el escaneo)"
+          className="min-w-0 flex-1 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
+          data-testid="input-direccion"
+        />
+        <button
+          onClick={() => setUbicarAbierto(true)}
+          className={`flex shrink-0 items-center gap-1 rounded-xl px-3 text-[11px] font-bold transition-all active:scale-[0.98] ${
+            coordenadas
+              ? 'border border-sky-400 bg-sky-500/25 text-sky-200'
+              : 'border border-slate-600 bg-slate-900 text-slate-300 hover:border-sky-500/60 hover:text-sky-300'
+          }`}
+          title="Marcar la entrega en el mapa (por coordenadas)"
+          data-testid="boton-ubicar"
+        >
+          <MapPin size={15} /> {coordenadas ? 'Listo' : 'Ubicar'}
+        </button>
+      </div>
+      {coordenadas && (
+        <div
+          className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5 text-[11px] font-semibold text-sky-300"
+          data-testid="chip-coordenadas"
+        >
+          <span className="truncate font-mono">
+            📍 {coordenadas.lat.toFixed(5)}, {coordenadas.lng.toFixed(5)}
+          </span>
+          <button
+            onClick={() => setCoordenadas(null)}
+            className="shrink-0 rounded p-0.5 text-sky-400/70 hover:text-red-400"
+            aria-label="Quitar coordenadas"
+            data-testid="quitar-coordenadas"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
-      {/* F-ID2.5: celular + botón WhatsApp lado a lado */}
+      {/* F-ID2.5: celular + botones 📞 llamar y 💬 Cobrar lado a lado */}
       <div className="mt-2 flex gap-2">
         <input
           value={celular}
@@ -450,6 +600,17 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
           className="min-w-0 flex-1 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
           data-testid="input-celular"
         />
+        {/* F-ID3.2: 📞 llamada directa al cliente */}
+        <button
+          onClick={llamarCliente}
+          disabled={escaneando || !celular.trim()}
+          className="flex shrink-0 items-center rounded-xl bg-sky-500/20 px-3 text-sky-300 transition-all active:scale-[0.98] disabled:opacity-40"
+          title="Llamar al cliente"
+          aria-label="Llamar al cliente"
+          data-testid="boton-llamar"
+        >
+          <Phone size={16} />
+        </button>
         <button
           onClick={mandarWhatsApp}
           disabled={escaneando}
@@ -461,7 +622,7 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
       </div>
       {celular.trim() && (
         <p className="mt-1 text-[10px] text-slate-500">
-          💬 El botón Cobrar abre el WhatsApp del cliente con el mensaje de pago listo (mismo estilo del QR de RiderTrack)
+          💬 El botón Cobrar abre el WhatsApp del cliente con el mensaje de pago listo · 📞 el teléfono lo llama directo
         </p>
       )}
 
@@ -603,6 +764,19 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
           <Plus size={16} /> Agregar viaje
         </span>
       </button>
+
+      {/* F-ID3.2: modal de ubicación por coordenadas (estilo RiderTrack v2) */}
+      {ubicarAbierto && (
+        <UbicarModal
+          coordenadasIniciales={coordenadas}
+          onGuardar={coords => {
+            setCoordenadas(coords);
+            setUbicarAbierto(false);
+            vibrar(40);
+          }}
+          onCerrar={() => setUbicarAbierto(false)}
+        />
+      )}
     </div>
   );
 }

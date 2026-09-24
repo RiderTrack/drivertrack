@@ -156,6 +156,15 @@ export function normalizarCelular(crudo: string): string {
   return digitos; // otro formato: se manda tal cual (wa.me decidirá)
 }
 
+// F-ID3.2: 📞 llamada directa — arma el link tel: con el +51.
+// En el APK abre el marcador del teléfono con el número listo;
+// en la web abre la app de llamadas del sistema (Skype/etc).
+export function linkLlamada(celular: string): string {
+  const num = normalizarCelular(celular);
+  if (!num) return '';
+  return num.startsWith('+') ? `tel:${num}` : `tel:+${num}`;
+}
+
 export function descargarArchivo(nombre: string, contenido: string, tipo = 'application/json'): void {
   const blob = new Blob([contenido], { type: tipo });
   const url = URL.createObjectURL(blob);

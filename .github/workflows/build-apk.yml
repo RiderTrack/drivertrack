@@ -56,11 +56,13 @@ jobs:
           echo '<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">DriverTrack</string><string name="title_activity_main">DriverTrack</string><string name="package_name">com.drivertrack.app</string><string name="custom_url_scheme">com.drivertrack.app</string></resources>' > android/app/src/main/res/values/strings.xml
 
       # Permisos: INTERNET (webviews), VIBRATE (celebración meta),
-      # CAMERA (listo para F-ID2: foto → OCR Gemini)
+      # CAMERA (listo para F-ID2: foto → OCR Gemini),
+      # FINE+COARSE LOCATION (F-ID3.2: km GPS por viaje — sin estos
+      # Android ni muestra "Ubicación" en los permisos de la app)
       - name: Update AndroidManifest permissions
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <application|' "$MANIFEST"
+          sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n    <application|' "$MANIFEST"
 
       - name: Set Gradle permissions
         run: chmod +x android/gradlew

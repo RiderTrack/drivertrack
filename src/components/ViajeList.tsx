@@ -10,10 +10,12 @@
 // ═══════════════════════════════════════════════════════════
 // F-ID3: botón 📍 para GRABAR los km GPS del viaje + línea de
 // km reales si ya se grabó.
+// F-ID3.2: botón 📞 para LLAMAR directo al cliente (abre el
+// marcador) — junto al 💬 de WhatsApp.
 import { useState } from 'react';
-import { MessageCircle, Navigation, Square, Trash2 } from 'lucide-react';
+import { MessageCircle, Navigation, Phone, Square, Trash2 } from 'lucide-react';
 import { ConfigDT, nombreOrigen, Viaje } from '../types';
-import { armarMensajeCobro, fmtSoles, linkWhatsApp, normalizarCelular } from '../utils';
+import { armarMensajeCobro, fmtSoles, linkLlamada, linkWhatsApp, normalizarCelular } from '../utils';
 import { formatearDuracion } from '../services/gps';
 
 interface Props {
@@ -129,27 +131,39 @@ export default function ViajeList({
               </button>
             ) : null}
             {v.celular.trim() && (
-              <button
-                onClick={() =>
-                  window.open(
-                    linkWhatsApp(
-                      normalizarCelular(v.celular),
-                      // F-ID2.8: MISMA función compartida que el botón
-                      // Cobrar de arriba — mensaje completo por bloques
-                      armarMensajeCobro(
-                        { cliente: v.cliente, monto: v.tarifa, direccion: v.direccion },
-                        config,
+              <div className="flex items-center gap-1">
+                {/* F-ID3.2: 📞 llamar directo — abre el marcador con +51 */}
+                <button
+                  onClick={() => window.open(linkLlamada(v.celular), '_self')}
+                  className="rounded-lg bg-sky-500/15 p-2 text-sky-400 transition-colors hover:bg-sky-500/25"
+                  aria-label="Llamar al cliente"
+                  title="Llamar al cliente"
+                  data-testid="boton-llamar-lista"
+                >
+                  <Phone size={16} />
+                </button>
+                <button
+                  onClick={() =>
+                    window.open(
+                      linkWhatsApp(
+                        normalizarCelular(v.celular),
+                        // F-ID2.8: MISMA función compartida que el botón
+                        // Cobrar de arriba — mensaje completo por bloques
+                        armarMensajeCobro(
+                          { cliente: v.cliente, monto: v.tarifa, direccion: v.direccion },
+                          config,
+                        ),
                       ),
-                    ),
-                    '_blank',
-                  )
-                }
-                className="rounded-lg bg-[#25D366]/15 p-2 text-[#25D366] transition-colors hover:bg-[#25D366]/25"
-                aria-label="Mandar mensaje de cobro por WhatsApp"
-                data-testid="boton-whatsapp-lista"
-              >
-                <MessageCircle size={16} />
-              </button>
+                      '_blank',
+                    )
+                  }
+                  className="rounded-lg bg-[#25D366]/15 p-2 text-[#25D366] transition-colors hover:bg-[#25D366]/25"
+                  aria-label="Mandar mensaje de cobro por WhatsApp"
+                  data-testid="boton-whatsapp-lista"
+                >
+                  <MessageCircle size={16} />
+                </button>
+              </div>
             )}
             {confirmarId === v.id ? (
               <div className="flex items-center gap-1">

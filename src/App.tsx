@@ -8,6 +8,8 @@
 // ═══════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bike, CheckCircle2, Map as MapIcon, Moon, Receipt, Settings, Sun } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { ConfigDT, Viaje } from './types';
 import {
   cargarConfig,
@@ -136,6 +138,21 @@ export default function App() {
 
   // ═══ F-ID3: grabación de km GPS por viaje ═══
 
+  /** F-ID3.2: en el APK, pide el permiso de UBICACIÓN nativo de
+   * Android (diálogo del sistema, el mismo que cámara/micro).
+   * Sin él, el GPS del WebView nunca entrega puntos — por eso en
+   * Ajustes de la app solo aparecía el permiso de cámara. En la
+   * web no hace falta (lo maneja el navegador). */
+  async function pedirPermisoUbicacion(): Promise<boolean> {
+    if (!Capacitor.isNativePlatform()) return true; // web/PWA: nada que pedir
+    try {
+      const res = await Geolocation.requestPermissions();
+      return res.location === 'granted' || res.coarseLocation === 'granted';
+    } catch {
+      return false; // diálogo bloqueado o error — se informa al usuario
+    }
+  }
+
   /** Pide que la pantalla no se apague mientras graba (best effort) */
   async function pedirWakeLock() {
     try {
@@ -197,7 +214,11 @@ export default function App() {
           borrarEstadoGPS();
           estadoRef.current = null;
           setEstadoGPS(null);
-          mostrarToast('Activá la UBICACIÓN para grabar tus km 📍 (permiso del navegador)');
+          mostrarToast(
+            Capacitor.isNativePlatform()
+              ? 'Activá la UBICACIÓN para grabar tus km 📍 (Ajustes del teléfono → Apps → DriverTrack → Permisos)'
+              : 'Activá la UBICACIÓN para grabar tus km 📍 (permiso del navegador)',
+          );
         }
         // timeouts / posición no disponible: el watch sigue vivo, no pasa nada
       },
@@ -206,8 +227,17 @@ export default function App() {
   }
 
   /** ▶ Empieza a grabar los km de un viaje (si había otro, se cierra y guarda solo) */
-  function iniciarGPSViaje(viajeId: string) {
+  async function iniciarGPSViaje(viajeId: string) {
     if (estadoRef.current?.viajeId === viajeId) return;
+
+    // F-ID3.2: en el APK, PRIMERO el permiso nativo de Android —
+    // sin él el GPS nunca arranca (antes: solo salía el de cámara)
+    const permisoOk = await pedirPermisoUbicacion();
+    if (!permisoOk) {
+      mostrarToast('Activá el permiso de UBICACIÓN para grabar 📍 (Ajustes → Apps → DriverTrack → Permisos)');
+      return;
+    }
+
     if (estadoRef.current) detenerGPS(true); // el anterior queda guardado
 
     const nuevo: EstadoGPS = { viajeId, inicioTs: Date.now(), km: 0, puntos: [] };
@@ -381,7 +411,7 @@ export default function App() {
           />
         )}
 
-        {tab === 'mapa' && <MapView viajes={viajes} />}
+        {tab === 'mapa' && <MapView viajes={viajes} estadoGPS={estadoGPS} />}
 
         {tab === 'ajustes' && (
           <AjustesView

@@ -25,6 +25,7 @@ export interface Viaje {
   kmGPS: number;       // F-ID3: km REALES grabados con GPS mientras manejabas (0 = sin grabar)
   duracionSeg: number; // F-ID3: cuánto duró el trayecto grabado (segundos de movimiento)
   ruta?: PuntoRuta[];  // F-ID3: el trazado para el mapa (se guarda comprimido, máx ~1500 puntos)
+  coordenadas?: { lat: number; lng: number }; // F-ID3.2: dónde es la ENTREGA (pin en el mapa, se pone a mano o por GPS)
   tarifa: number;      // lo que cobra la app / el cliente
   comisionPct: number; // % que se queda la plataforma
   comision: number;    // monto de la comisión
