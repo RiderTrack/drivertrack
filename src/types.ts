@@ -13,6 +13,8 @@ export interface Viaje {
   zona: string;
   direccion: string;   // F-ID2.5: dirección de ENTREGA propia (antes vivía perdida en notas)
   celular: string;     // F-ID2.5: WhatsApp del cliente → botón de cobro
+  yapeNombre: string;  // F-ID2.6: nombre de la cuenta yape del pedido (ej: "Mk" en "Mk yape 980811297")
+  yapeNumero: string;  // F-ID2.6: número yape/plin del pedido — para saber QUIÉN pagó
   tarifa: number;      // lo que cobra la app / el cliente
   comisionPct: number; // % que se queda la plataforma
   comision: number;    // monto de la comisión

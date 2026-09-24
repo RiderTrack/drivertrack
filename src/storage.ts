@@ -43,9 +43,15 @@ export function cargarViajes(): Viaje[] {
     const raw = localStorage.getItem(K_VIAJES);
     if (!raw) return [];
     const lista = JSON.parse(raw) as Partial<Viaje>[];
-    // F-ID2.5: los viajes guardados antes de F-ID2.5 no tienen
-    // direccion/celular → se completan vacíos para que no rompan nada
-    return lista.map(v => ({ ...v, direccion: v.direccion ?? '', celular: v.celular ?? '' })) as Viaje[];
+    // F-ID2.5/2.6: los viajes guardados antes no tienen
+    // direccion/celular/yape → se completan vacíos para que no rompan nada
+    return lista.map(v => ({
+      ...v,
+      direccion: v.direccion ?? '',
+      celular: v.celular ?? '',
+      yapeNombre: v.yapeNombre ?? '',
+      yapeNumero: v.yapeNumero ?? '',
+    })) as Viaje[];
   } catch {
     return [];
   }

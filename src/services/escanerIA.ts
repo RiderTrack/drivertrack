@@ -1,7 +1,23 @@
 // ═══════════════════════════════════════════════════════════
-// 📷 DriverTrack — Escáner de dirección con IA (F-ID2 → F-ID2.5)
+// 📷 DriverTrack — Escáner de dirección con IA (F-ID2 → F-ID2.6)
 // Foto del pedido → la IA lee cliente, dirección, zona,
-// referencia, teléfono y tarifa → el formulario se llena solo.
+// referencia, teléfono, tarifa y yape → el formulario se llena solo.
+//
+// F-ID2.6 — escáner v3, NOMBRE REAL + YAPE (caso real del usuario):
+//   · La IA puso "C.1" como cliente — pero C.1 es la CALLE 1 del
+//     barrio (código de pueblo joven/proyecto de vivienda) → el
+//     WhatsApp salió "Hola C.1!" 😅 y el nombre real nunca llegó.
+//   · El pedido traía "Mk yape 980811297" y la IA lo IGNORABA.
+//     Ahora: yapeNombre + yapeNumero con campos propios, y si el
+//     único nombre de persona aparece junto al yape, ESE es el
+//     cliente ("Mk" en el caso real).
+//   · Saneamiento POST-scan en código (no solo el prompt): si la IA
+//     vuelve a poner un código o trozo de dirección en "cliente",
+//     se mueve a la dirección y el cliente se rescata del yape.
+//     Y "Barrio Barrio XV" (palabra pegada repetida) → "Barrio XV".
+//   · Si la foto no trae teléfono pero sí yape, el celular se
+//     llena con el número del yape (en Perú el yape ES el celular
+//     del cliente) — editable, como todo el formulario.
 //
 // F-ID2.5 — DOBLE key con RESPALDO automático:
 //   · Se pueden configurar AMBAS keys (Gemini + Claude).
@@ -45,6 +61,8 @@ export interface DatosEscaneados {
   zona: string;
   referencia: string;
   telefono: string;
+  yapeNombre: string; // F-ID2.6: "Mk" en "Mk yape 980811297"
+  yapeNumero: string; // F-ID2.6: "980811297" — solo dígitos
   tarifa: number | null; // null si la foto no muestra precio
 }
 
@@ -106,20 +124,31 @@ const TIMEOUT_SIN_IMAGEN = 20000;
 
 const PROMPT = `Eres el escáner de pedidos de DriverTrack, una app de delivery motorizado en Lima, Perú.
 
-Te mando la FOTO de un pedido. Puede ser: una captura de pantalla de inDrive, Rappi o PedidosYa; un chat de WhatsApp; una nota o sticker escrito a mano; o el sticker del paquete.
+Te mando la FOTO de un pedido. Puede ser: una captura de pantalla de inDrive, Rappi o PedidosYa; un chat de WhatsApp; una nota o sticker escrito a mano; o el sticker del paquete. MUCHOS pedidos son de pueblos jóvenes y proyectos de vivienda: las calles van con CÓDIGO — "C.1" es Calle 1, "C.2" es Calle 2, y "Mz B Lt 5" es Manzana B Lote 5. Esos códigos son PARTE DE LA DIRECCIÓN, jamás nombres de personas.
 
 Extrae los datos del ENVÍO con estas reglas:
-- cliente: nombre del cliente si aparece (quién recibe o pide). Si no aparece, "".
-- direccion: la dirección de ENTREGA tal cual está escrita (avenida/calle/jirón, número, interior, departamento, manzana, lote). Si hay varias direcciones, la de entrega final.
+- cliente: el NOMBRE DE PERSONA del cliente (quién recibe o pide). Ej: "Mk", "María Fernández", "Kevin Rojas". NUNCA pongas acá códigos de dirección ("C.1", "C-1", "Casa 2", "Mz B", "Lote 5", "#123", "Cliente 3") ni barrios/zonas. OJO: si el único nombre de persona aparece junto al yape (ej: "Mk yape 987654321"), ese ES el cliente. Si la foto no tiene ningún nombre de persona, devuelve "".
+- direccion: la dirección de ENTREGA COMPLETA tal cual está escrita: avenida/calle/jirón con su número O CÓDIGO ("C.1", "Mz C Lt 5"), urbanización/barrio/proyecto/etapa, interior, departamento, manzana, lote. Si hay varias direcciones, la de entrega final. NUNCA metas nombres de personas acá.
 - zona: el distrito o zona (ej: San Miguel, La Perla, Cercado, SMP). Solo el nombre, sin "Distrito de".
 - referencia: el punto de referencia si aparece (ej: "frente a la bodega", "portón azul").
-- telefono: el celular del cliente si aparece (dígitos y espacios). BÚSALO BIEN: suele estar como "teléfono", "celular", "contacto" o en el propio chat. Es MUY importante para el cobro.
-- tarifa: el precio/tarifa del viaje SÍ Y SOLO SÍ aparece escrito explícitamente (ej: "S/ 8.50", "8 soles"). Solo el número ("8.50"). Si no aparece, "".
+- telefono: el celular del cliente si aparece (dígitos y espacios). BÚSCALO BIEN: suele estar como "teléfono", "celular", "contacto" o en el propio chat. Es MUY importante para el cobro.
+- yapeNombre: si aparece la palabra "yape" o "plin", el NOMBRE que la acompaña (ej: en "Mk yape 987654321" es "Mk"). Si no aparece, "".
+- yapeNumero: el número de la cuenta yape/plin que aparece en la foto, SOLO dígitos (ej: "987654321"). Si no aparece, "".
+- tarifa: el precio/tarifa del viaje SÍ Y SOLO SÍ aparece escrito explícitamente (ej: "S/ 8.50", "8 soles", "16"). Solo el número ("8.50"). Si no aparece, "".
+
+EJEMPLO REAL — la foto dice:
+C.1
+Barrio XV Popular de Intereses Social Proyecto
+Mk yape 980811297
+16
+La respuesta correcta es:
+{"cliente":"Mk","direccion":"C.1 Barrio XV Popular de Intereses Social Proyecto","zona":"","referencia":"","telefono":"","yapeNombre":"Mk","yapeNumero":"980811297","tarifa":"16"}
+Fíjate: "C.1" es la CALLE → va al INICIO de la direccion; "Mk" es la PERSONA → va en cliente (y en yapeNombre).
 
 REGLAS DE ORO:
-- Copia el texto EXACTO de la foto. No corrijas ortografía. NO INVENTES NADA.
+- Copia el texto EXACTO de la foto. No corrijas ortografía. NO INVENTES NADA. No repitas palabras pegadas (si la foto dice "Barrio XV", es "Barrio XV", no "Barrio Barrio XV").
 - Si un dato no aparece en la foto, devuelve "" (cadena vacía).
-- Responde SOLO el JSON.`;
+- Responde SOLO el JSON, con EXACTAMENTE estas claves: cliente, direccion, zona, referencia, telefono, yapeNombre, yapeNumero, tarifa.`;
 
 // Claude no tiene responseSchema: se le exige el JSON por el prompt
 const PROMPT_CLAUDE_EXTRA = `
@@ -376,6 +405,63 @@ function parsearTarifa(crudo: string | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+// ── F-ID2.6: SANEAMIENTO post-scan ──
+// El caso real: la IA puso "C.1" (la CALLE 1 del barrio) como
+// cliente y duplicó "Barrio Barrio". El prompt ahora lo enseña,
+// pero por si el modelo mete la pata igual, acá se autocorrige.
+
+/** ¿Esto parece un CÓDIGO de dirección y no un nombre de persona?
+ *  "C.1", "C-1", "Casa 2", "Lote 5", "Mz B 12", "Cliente 3", "#12" */
+function pareceCodigoDireccion(s: string): boolean {
+  const t = s.trim();
+  if (!t || !/\d/.test(t)) return false; // sin números → no es código
+  return /^(#?\d{1,4}|(c|calle|casa|clte|cliente|lt|lote|mz|manzana|psj|pasaje|urb|etapa|sector|bloque|int|dpto|km)[\s.:-]*#?\d{0,4}[a-z]?(\s+(mz|lt|lote|manzana|etapa)\s*[a-z]?\d{0,4})*)$/i.test(t);
+}
+
+/** ¿Esto parece un TROZO DE DIRECCIÓN y no un nombre de persona?
+ *  "Barrio XV Popular de Intereses Social Proyecto", "Av. La Marina 2450" */
+function pareceTrozoDireccion(s: string): boolean {
+  const t = s.trim().toLowerCase();
+  if (!t) return false;
+  // palabras típicas de dirección, completas (que "av" no pegue con "David")
+  const claves = [
+    'barrio', 'avenida', 'av', 'av.', 'jiron', 'jirón', 'jr', 'jr.', 'calle',
+    'urbanizacion', 'urbanización', 'urb', 'urb.', 'mz', 'manzana', 'lote', 'lt',
+    'etapa', 'proyecto', 'pueblo', 'asociacion', 'asociación', 'aa.hh',
+    'sector', 'pasaje', 'psj', 'carretera', 'malecon', 'malecón', 'interes', 'interés',
+  ];
+  let hits = 0;
+  for (const k of claves) {
+    if (new RegExp(`(^|\\s)${k.replace('.', '\\.')}(\s|$)`, 'i').test(t)) hits++;
+  }
+  return hits >= 2 || (hits >= 1 && t.split(/\s+/).length >= 4);
+}
+
+/** "Barrio Barrio XV Popular" → "Barrio XV Popular" (palabra pegada repetida). */
+function sinPalabrasRepetidas(s: string): string {
+  return s.replace(/\b(\S+)(\s+\1\b)+/gi, '$1').replace(/\s{2,}/g, ' ').trim();
+}
+
+/** La red de seguridad completa: corrige cliente/dirección confundidos. */
+function sanearDatos(d: DatosEscaneados): DatosEscaneados {
+  // 1. La IA puso un código de calle ("C.1") o un trozo de dirección
+  //    en "cliente" → se muda a la dirección (al INICIO, como en el
+  //    ejemplo real: "C.1 Barrio XV Popular …")
+  if (d.cliente && (pareceCodigoDireccion(d.cliente) || pareceTrozoDireccion(d.cliente))) {
+    d.direccion = d.direccion ? `${d.cliente} ${d.direccion}`.trim() : d.cliente;
+    d.cliente = '';
+  }
+  // 2. Quedó sin nombre pero el pedido trae nombre de yape → ese es
+  //    el cliente ("Mk yape 980811297" → cliente "Mk")
+  if (!d.cliente && d.yapeNombre) d.cliente = d.yapeNombre;
+  // 3. Palabras pegadas repetidas en dirección/zona
+  d.direccion = sinPalabrasRepetidas(d.direccion);
+  d.zona = sinPalabrasRepetidas(d.zona);
+  // 4. El número de yape queda limpio: solo dígitos
+  d.yapeNumero = d.yapeNumero.replace(/[^0-9]/g, '');
+  return d;
+}
+
 /** F-ID2.5: errores de CUENTA — con estos, la key está muerta HOY
  *  y reintentar no ayuda… pero la OTRA proveedora puede salvar el escaneo. */
 const ERRORES_RESCATABLES: CodigoErrorOcr[] = [
@@ -426,20 +512,24 @@ export async function escanearDireccion(
     try {
       const { texto } = await llamarIA(intentos[i], { prompt: PROMPT, imagenB64: fotoBase64 });
       const d = parsearJsonTexto(texto);
-      const datos: DatosEscaneados = {
+      const datos: DatosEscaneados = sanearDatos({
         cliente: (d.cliente ?? '').trim(),
         direccion: (d.direccion ?? '').trim(),
         zona: (d.zona ?? '').trim(),
         referencia: (d.referencia ?? '').trim(),
         telefono: (d.telefono ?? '').trim(),
+        yapeNombre: (d.yapeNombre ?? '').trim(),
+        yapeNumero: (d.yapeNumero ?? '').trim(),
         tarifa: parsearTarifa(d.tarifa),
-      };
+      });
       if (
         !datos.cliente &&
         !datos.direccion &&
         !datos.zona &&
         !datos.referencia &&
         !datos.telefono &&
+        !datos.yapeNombre &&
+        !datos.yapeNumero &&
         datos.tarifa === null
       ) {
         // La foto no tenía nada legible para ESTA proveedora — que la

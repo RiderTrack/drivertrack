@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// ➕ DriverTrack — Formulario de viaje rápido (F-ID1 → F-ID2.5)
+// ➕ DriverTrack — Formulario de viaje rápido (F-ID1 → F-ID2.6)
 // F-ID1: tarifa + % comisión → cálculo EN VIVO del neto.
 // F-ID2: 📷 escanear la dirección con una foto → la IA llena
 //        el formulario solo (cliente, zona, tarifa, dirección).
@@ -9,6 +9,11 @@
 //        (antes quedaban perdidos dentro de Notas) + botón 💬
 //        WhatsApp que abre el chat del cliente con el mensaje de
 //        cobro listo (estilo QR de RiderTrack v2).
+// F-ID2.6: escáner v3 — el NOMBRE REAL del cliente (la IA ya no
+//        confunde "C.1" — la calle — con la persona) + campos
+//        💜 Yape del pedido (nombre y número: "Mk yape 980811297")
+//        + si la foto no trae teléfono, el celular se llena con el
+//        número del yape (en Perú el yape ES el celular del cliente).
 // ═══════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Check, ImageUp, Loader2, MessageCircle, Plus, X, Zap } from 'lucide-react';
@@ -31,6 +36,8 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
   const [zona, setZona] = useState('');
   const [direccion, setDireccion] = useState(''); // F-ID2.5: campo propio (antes vivía en notas)
   const [celular, setCelular] = useState('');   // F-ID2.5: WhatsApp del cliente
+  const [yapeNombre, setYapeNombre] = useState(''); // F-ID2.6: "Mk" en "Mk yape 980811297"
+  const [yapeNumero, setYapeNumero] = useState(''); // F-ID2.6: 980811297 — para saber quién pagó
   const [notas, setNotas] = useState('');
   const [error, setError] = useState('');
 
@@ -121,7 +128,14 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
       // F-ID2.5: dirección y celular a sus PROPIOS campos (antes
       // terminaban aplastados dentro de notas)
       if (datos.direccion) setDireccion(datos.direccion);
+      // F-ID2.6: si la foto no trae teléfono pero sí yape, el celular
+      // se llena con el número del yape — en Perú el yape ES el
+      // celular del cliente (editable como todo el formulario)
       if (datos.telefono) setCelular(datos.telefono);
+      else if (datos.yapeNumero) setCelular(datos.yapeNumero);
+      // F-ID2.6: el yape del pedido con sus DOS campos
+      if (datos.yapeNombre) setYapeNombre(datos.yapeNombre);
+      if (datos.yapeNumero) setYapeNumero(datos.yapeNumero);
 
       // La referencia y lo suelto sigue en notas (más corto ahora)
       const trozos: string[] = [];
@@ -197,6 +211,8 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
       zona: zona.trim(),
       direccion: direccion.trim(),
       celular: celular.trim(),
+      yapeNombre: yapeNombre.trim(),
+      yapeNumero: yapeNumero.trim(),
       tarifa: t,
       comisionPct: p,
       comision: c,
@@ -208,6 +224,8 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
     setZona('');
     setDireccion('');
     setCelular('');
+    setYapeNombre('');
+    setYapeNumero('');
     setNotas('');
     limpiarEscaneo();
   }
@@ -426,6 +444,30 @@ export default function ViajeForm({ config, onAgregar, onNecesitaKey }: Props) {
       {celular.trim() && (
         <p className="mt-1 text-[10px] text-slate-500">
           💬 El botón Cobrar abre el WhatsApp del cliente con el mensaje de pago listo (mismo estilo del QR de RiderTrack)
+        </p>
+      )}
+
+      {/* F-ID2.6: yape del pedido — "Mk yape 980811297" → nombre + número */}
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <input
+          value={yapeNombre}
+          onChange={e => setYapeNombre(e.target.value)}
+          placeholder="💜 Yape: nombre"
+          className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
+          data-testid="input-yape-nombre"
+        />
+        <input
+          value={yapeNumero}
+          onChange={e => setYapeNumero(e.target.value)}
+          inputMode="numeric"
+          placeholder="💜 Yape: número"
+          className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-slate-400"
+          data-testid="input-yape-numero"
+        />
+      </div>
+      {(yapeNombre.trim() || yapeNumero.trim()) && (
+        <p className="mt-1 text-[10px] text-slate-500">
+          💜 Yape del pedido — para saber quién pagó (se guarda con el viaje)
         </p>
       )}
 

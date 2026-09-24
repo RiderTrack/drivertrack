@@ -371,7 +371,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </p>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.2.5 (F-ID2.5) — Trackverse · Lima, PE
+        DriverTrack v0.2.6 (F-ID2.6) — Trackverse · Lima, PE
       </p>
     </div>
   );

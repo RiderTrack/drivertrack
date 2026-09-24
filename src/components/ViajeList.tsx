@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════════════════
-// 📋 DriverTrack — Lista de viajes del día (F-ID2.5)
+// 📋 DriverTrack — Lista de viajes del día (F-ID2.5 → F-ID2.6)
 // Muestra la dirección de entrega propia y, si hay celular,
 // el botón 💬 para mandar el mensaje de cobro por WhatsApp.
+// F-ID2.6: también el 💜 yape del pedido (quién pagó).
 // ═══════════════════════════════════════════════════════════
 import { useState } from 'react';
 import { MessageCircle, Trash2 } from 'lucide-react';
@@ -73,6 +74,15 @@ export default function ViajeList({ viajes, onEliminar, titulo }: Props) {
             {v.direccion && (
               <p className="mt-1 truncate text-[10px] leading-snug text-slate-400" title={v.direccion}>
                 📍 {v.direccion}
+              </p>
+            )}
+            {(v.yapeNombre || v.yapeNumero) && (
+              <p
+                className="mt-1 truncate text-[10px] leading-snug text-purple-300/80"
+                title={`Yape del pedido: ${v.yapeNombre} ${v.yapeNumero}`.trim()}
+                data-testid="yape-viaje"
+              >
+                💜 {v.yapeNombre} {v.yapeNumero}
               </p>
             )}
             {v.notas && (
