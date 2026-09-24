@@ -14,6 +14,9 @@ interface Props {
   onEliminar: (id: string) => void;
   onCobrar: (monto: number) => void;
   onToast: (msg: string) => void;
+  viajeGPSActivo?: string | null;         // F-ID3: pasa through a la lista
+  onIniciarGPS?: (id: string) => void;    // F-ID3
+  onDetenerGPS?: () => void;              // F-ID3
 }
 
 function sumarDias(fecha: string, dias: number): string {
@@ -22,11 +25,22 @@ function sumarDias(fecha: string, dias: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
-export default function CajaView({ viajes, config, onEliminar, onCobrar, onToast }: Props) {
+export default function CajaView({
+  viajes,
+  config,
+  onEliminar,
+  onCobrar,
+  onToast,
+  viajeGPSActivo,
+  onIniciarGPS,
+  onDetenerGPS,
+}: Props) {
   const [fecha, setFecha] = useState(fechaHoy());
   const resumen = useMemo(() => resumenDia(viajes, fecha), [viajes, fecha]);
   const delDia = useMemo(() => viajes.filter(v => v.fecha === fecha), [viajes, fecha]);
   const esHoy = fecha === fechaHoy();
+  // F-ID3: km reales del día + cuánto pagó cada km
+  const kmDia = delDia.reduce((s, v) => s + (v.kmGPS ?? 0), 0);
 
   function exportarCSV() {
     if (delDia.length === 0) return onToast('No hay viajes que exportar');
@@ -108,6 +122,17 @@ export default function CajaView({ viajes, config, onEliminar, onCobrar, onToast
         </div>
       </div>
 
+      {/* F-ID3: cuánto te pagó cada km de hoy (solo la plata de los
+          viajes grabados — mezclar los sin GPS infla el número) */}
+      {kmDia > 0 && (
+        <div
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-500/10 py-2 text-xs font-bold text-sky-300"
+          data-testid="caja-km"
+        >
+          📍 {kmDia.toFixed(1)} km reales · S/ {(delDia.filter(v => (v.kmGPS ?? 0) > 0).reduce((s, v) => s + v.neto, 0) / kmDia).toFixed(2)} por km
+        </div>
+      )}
+
       {/* Acciones */}
       <div className="grid grid-cols-3 gap-2">
         <button
@@ -136,6 +161,9 @@ export default function CajaView({ viajes, config, onEliminar, onCobrar, onToast
         onEliminar={onEliminar}
         titulo={`del ${fechaBonita(fecha)}`}
         config={config}
+        viajeGPSActivo={viajeGPSActivo}
+        onIniciarGPS={onIniciarGPS}
+        onDetenerGPS={onDetenerGPS}
       />
     </div>
   );

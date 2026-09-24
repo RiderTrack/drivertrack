@@ -45,12 +45,15 @@ export function cargarViajes(): Viaje[] {
     const lista = JSON.parse(raw) as Partial<Viaje>[];
     // F-ID2.5/2.6: los viajes guardados antes no tienen
     // direccion/celular/yape → se completan vacíos para que no rompan nada
+    // F-ID3: ídem con kmGPS/duracionSeg (los viejos no se grabaron con GPS)
     return lista.map(v => ({
       ...v,
       direccion: v.direccion ?? '',
       celular: v.celular ?? '',
       yapeNombre: v.yapeNombre ?? '',
       yapeNumero: v.yapeNumero ?? '',
+      kmGPS: v.kmGPS ?? 0,
+      duracionSeg: v.duracionSeg ?? 0,
     })) as Viaje[];
   } catch {
     return [];
@@ -58,7 +61,25 @@ export function cargarViajes(): Viaje[] {
 }
 
 export function guardarViajes(v: Viaje[]): void {
-  localStorage.setItem(K_VIAJES, JSON.stringify(v));
+  try {
+    localStorage.setItem(K_VIAJES, JSON.stringify(v));
+  } catch {
+    // F-ID3: las RUTAS GPS (los trazados para el mapa) son lo más
+    // pesado. Si el localStorage se llena, se sueltan las rutas de
+    // los viajes MÁS VIEJOS (los km numéricos quedan, solo se
+    // pierde el dibujo) y se reintenta.
+    try {
+      const alivianados = v.map((x, i) => (i < v.length / 2 ? { ...x, ruta: undefined } : x));
+      localStorage.setItem(K_VIAJES, JSON.stringify(alivianados));
+    } catch {
+      // último recurso: sin rutas en absoluto, los números nunca se pierden
+      try {
+        localStorage.setItem(K_VIAJES, JSON.stringify(v.map(x => ({ ...x, ruta: undefined }))));
+      } catch {
+        /* sin espacio ni para eso: no hay mucho más que hacer */
+      }
+    }
+  }
 }
 
 /** F-ID2.5: completa defaults y MIGRA la key de Claude si quedó pegada en el campo de Gemini. */

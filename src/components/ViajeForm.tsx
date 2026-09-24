@@ -229,6 +229,8 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
       celular: celular.trim(),
       yapeNombre: yapeNombre.trim(),
       yapeNumero: yapeNumero.trim(),
+      kmGPS: 0,        // F-ID3: se llena al grabar el recorrido con el botón 📍
+      duracionSeg: 0,  // F-ID3: ídem
       tarifa: t,
       comisionPct: p,
       comision: c,

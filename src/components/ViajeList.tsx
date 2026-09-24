@@ -8,19 +8,33 @@
 // monto + entrega + TU Yape + gracias) — antes mandaba una
 // copia vieja sin el bloque de pago.
 // ═══════════════════════════════════════════════════════════
+// F-ID3: botón 📍 para GRABAR los km GPS del viaje + línea de
+// km reales si ya se grabó.
 import { useState } from 'react';
-import { MessageCircle, Trash2 } from 'lucide-react';
+import { MessageCircle, Navigation, Square, Trash2 } from 'lucide-react';
 import { ConfigDT, nombreOrigen, Viaje } from '../types';
 import { armarMensajeCobro, fmtSoles, linkWhatsApp, normalizarCelular } from '../utils';
+import { formatearDuracion } from '../services/gps';
 
 interface Props {
   viajes: Viaje[]; // solo los del día mostrado
   onEliminar: (id: string) => void;
   titulo: string;
   config: ConfigDT; // F-ID2.8: tu Yape/Plin guardados van en el mensaje
+  viajeGPSActivo?: string | null;      // F-ID3: id del viaje que se está grabando
+  onIniciarGPS?: (id: string) => void; // F-ID3: arrancar la grabación
+  onDetenerGPS?: () => void;           // F-ID3: terminar la grabación
 }
 
-export default function ViajeList({ viajes, onEliminar, titulo, config }: Props) {
+export default function ViajeList({
+  viajes,
+  onEliminar,
+  titulo,
+  config,
+  viajeGPSActivo,
+  onIniciarGPS,
+  onDetenerGPS,
+}: Props) {
   const [confirmarId, setConfirmarId] = useState<string | null>(null);
 
   if (viajes.length === 0) {
@@ -76,6 +90,14 @@ export default function ViajeList({ viajes, onEliminar, titulo, config }: Props)
                 💜 {v.yapeNombre} {v.yapeNumero}
               </p>
             )}
+            {v.kmGPS > 0 && (
+              <p
+                className="mt-1 truncate text-[10px] font-semibold leading-snug text-sky-300/80"
+                data-testid="km-viaje"
+              >
+                📍 {v.kmGPS.toFixed(1)} km reales · {formatearDuracion(v.duracionSeg)}
+              </p>
+            )}
             {v.notas && (
               <p className="mt-1 truncate text-[10px] leading-snug text-slate-500" title={v.notas}>
                 📝 {v.notas.split('\n')[0]}
@@ -84,6 +106,28 @@ export default function ViajeList({ viajes, onEliminar, titulo, config }: Props)
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-1">
+            {/* F-ID3: 📍 grabar los km GPS de ESTE viaje */}
+            {viajeGPSActivo === v.id && onDetenerGPS ? (
+              <button
+                onClick={onDetenerGPS}
+                className="relative flex items-center gap-1 rounded-lg bg-emerald-500/20 px-2 py-2 text-[10px] font-bold text-emerald-300"
+                aria-label="Terminar grabación GPS"
+                data-testid="boton-gps-activo"
+              >
+                <span className="absolute right-1 top-1 h-1.5 w-1.5 animate-ping rounded-full bg-emerald-400" />
+                <Square size={11} fill="currentColor" /> GPS
+              </button>
+            ) : onIniciarGPS ? (
+              <button
+                onClick={() => onIniciarGPS(v.id)}
+                className="rounded-lg bg-sky-500/15 p-2 text-sky-400 transition-colors hover:bg-sky-500/25"
+                aria-label="Grabar los km GPS de este viaje"
+                title="Grabar los km de este viaje"
+                data-testid="boton-gps"
+              >
+                <Navigation size={16} />
+              </button>
+            ) : null}
             {v.celular.trim() && (
               <button
                 onClick={() =>

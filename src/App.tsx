@@ -1,10 +1,13 @@
 // ═══════════════════════════════════════════════════════════
-// 🏍️ DriverTrack — Shell principal (F-ID1)
-// Pestañas: Viajes (form + meta + lista) · Caja · Ajustes
+// 🏍️ DriverTrack — Shell principal (F-ID1 → F-ID3)
+// Pestañas: Viajes (form + meta + lista) · Caja · Mapa · Ajustes
 // Local-first: todo en localStorage, backup JSON.
+// F-ID3: la grabación GPS vive ACÁ (en el shell) para que siga
+// corriendo aunque cambies de pestaña — la barra verde muestra
+// los km en vivo y al terminar quedan guardados en el viaje.
 // ═══════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bike, CheckCircle2, Moon, Receipt, Settings, Sun } from 'lucide-react';
+import { Bike, CheckCircle2, Map as MapIcon, Moon, Receipt, Settings, Sun } from 'lucide-react';
 import { ConfigDT, Viaje } from './types';
 import {
   cargarConfig,
@@ -19,15 +22,25 @@ import {
 } from './storage';
 import { descargarArchivo, vibrar } from './utils';
 import { aplicarTema, cargarTema, guardarTema, Tema } from './theme';
+import {
+  borrarEstadoGPS,
+  duracionMovimientoSeg,
+  EstadoGPS,
+  guardarEstadoGPS,
+  leerEstadoGPS,
+  registrarPunto,
+} from './services/gps';
 import ViajeForm from './components/ViajeForm';
 import ViajeList from './components/ViajeList';
 import MetaBar from './components/MetaBar';
 import CajaView from './components/CajaView';
+import MapView from './components/MapView';
+import GpsBar from './components/GpsBar';
 import AjustesView from './components/AjustesView';
 import YapePanel from './components/YapePanel';
 import Confeti from './components/Confeti';
 
-type Tab = 'viajes' | 'caja' | 'ajustes';
+type Tab = 'viajes' | 'caja' | 'mapa' | 'ajustes';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('viajes');
@@ -36,12 +49,24 @@ export default function App() {
   const [confeti, setConfeti] = useState(false);
   const [toast, setToast] = useState('');
   const [cobrarAbierto, setCobrarAbierto] = useState(false);
+  // F-ID3: seguimiento GPS en curso (sobrevive recargas: se lee de localStorage)
+  const [estadoGPS, setEstadoGPS] = useState<EstadoGPS | null>(() => leerEstadoGPS());
   const [tema, setTema] = useState<Tema>(() => {
     const t = cargarTema();
     aplicarTema(t);
     return t;
   });
   const toastTimer = useRef<number | null>(null);
+  // El watchPosition crea su callback UNA vez → necesita la última
+  // versión del estado sin cerrar sobre una vieja: espejo en ref.
+  // ⚠️ El ref es la FUENTE DE VERDAD: cada setEstadoGPS escribe el
+  // ref PRIMERO y el estado después → NO hace falta (ni se puede)
+  // sincronizar al revés. Un useEffect que copiara el estado al ref
+  // puede dispararse TARDE con un valor viejo de render y pisar el
+  // ref hacia ATRÁS → el GPS pierde puntos (bug de la ruta corta).
+  const estadoRef = useRef<EstadoGPS | null>(estadoGPS);
+  const watchRef = useRef<number | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   const hoy = fechaHoy();
   const resumenHoy = useMemo(() => resumenDia(viajes, hoy), [viajes, hoy]);
@@ -96,9 +121,162 @@ export default function App() {
   }
 
   function eliminarViaje(id: string) {
+    // F-ID3: si se borra el viaje que se estaba grabando, la
+    // grabación se descarta (no hay dónde guardarla)
+    if (estadoRef.current?.viajeId === id) {
+      pararWatch();
+      soltarWakeLock();
+      borrarEstadoGPS();
+      estadoRef.current = null;
+      setEstadoGPS(null);
+    }
     setViajes(prev => prev.filter(v => v.id !== id));
     mostrarToast('Viaje eliminado 🗑️');
   }
+
+  // ═══ F-ID3: grabación de km GPS por viaje ═══
+
+  /** Pide que la pantalla no se apague mientras graba (best effort) */
+  async function pedirWakeLock() {
+    try {
+      if ('wakeLock' in navigator && !wakeLockRef.current) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+        wakeLockRef.current.addEventListener('release', () => {
+          wakeLockRef.current = null;
+        });
+      }
+    } catch {
+      /* el navegador lo negó o no lo soporta: la grabación sigue igual */
+    }
+  }
+
+  function soltarWakeLock() {
+    try {
+      wakeLockRef.current?.release();
+    } catch {
+      /* nada */
+    }
+    wakeLockRef.current = null;
+  }
+
+  function pararWatch() {
+    if (watchRef.current !== null && 'geolocation' in navigator) {
+      navigator.geolocation.clearWatch(watchRef.current);
+    }
+    watchRef.current = null;
+  }
+
+  /** Arranca el watchPosition — el callback vive UNA vez y lee el ref */
+  function iniciarWatchGPS() {
+    if (watchRef.current !== null) return;
+    if (!('geolocation' in navigator)) {
+      mostrarToast('Tu navegador no soporta GPS 📍');
+      return;
+    }
+    watchRef.current = navigator.geolocation.watchPosition(
+      pos => {
+        const est = estadoRef.current;
+        if (!est) return; // ya se detuvo
+        const { coords } = pos;
+        const { estado: nuevo, aceptado } = registrarPunto(
+          est,
+          coords.latitude,
+          coords.longitude,
+          coords.accuracy ?? 999,
+        );
+        if (!aceptado) return;
+        guardarEstadoGPS(nuevo);
+        estadoRef.current = nuevo;
+        setEstadoGPS(nuevo);
+      },
+      err => {
+        if (err.code === err.PERMISSION_DENIED) {
+          // sin permiso no hay grabación: se corta limpio sin ensuciar el viaje
+          pararWatch();
+          soltarWakeLock();
+          borrarEstadoGPS();
+          estadoRef.current = null;
+          setEstadoGPS(null);
+          mostrarToast('Activá la UBICACIÓN para grabar tus km 📍 (permiso del navegador)');
+        }
+        // timeouts / posición no disponible: el watch sigue vivo, no pasa nada
+      },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 },
+    );
+  }
+
+  /** ▶ Empieza a grabar los km de un viaje (si había otro, se cierra y guarda solo) */
+  function iniciarGPSViaje(viajeId: string) {
+    if (estadoRef.current?.viajeId === viajeId) return;
+    if (estadoRef.current) detenerGPS(true); // el anterior queda guardado
+
+    const nuevo: EstadoGPS = { viajeId, inicioTs: Date.now(), km: 0, puntos: [] };
+    guardarEstadoGPS(nuevo);
+    estadoRef.current = nuevo;
+    setEstadoGPS(nuevo);
+    pedirWakeLock();
+    iniciarWatchGPS();
+    vibrar(60);
+    mostrarToast('📍 Grabando los km de este viaje — manejá tranquilo');
+  }
+
+  /** ■ Termina la grabación: km + tiempo + trazado quedan EN el viaje */
+  function detenerGPS(silencioso = false) {
+    const est = estadoRef.current;
+    if (!est) return;
+    pararWatch();
+    soltarWakeLock();
+    borrarEstadoGPS();
+    estadoRef.current = null;
+    setEstadoGPS(null);
+
+    if (est.puntos.length < 2) {
+      // no se grabó nada útil (permiso recién dado, viaje cortado al toque)
+      if (!silencioso) mostrarToast('No se grabó nada — probá de nuevo 📍');
+      return;
+    }
+
+    const duracion = duracionMovimientoSeg(est);
+    const km = +est.km.toFixed(2);
+    setViajes(prev =>
+      prev.map(v =>
+        v.id === est.viajeId
+          ? {
+              ...v,
+              kmGPS: +((v.kmGPS ?? 0) + km).toFixed(2), // si re-grabó el mismo viaje, se suma
+              duracionSeg: (v.duracionSeg ?? 0) + duracion,
+              ruta: v.ruta && v.ruta.length >= 2 ? [...v.ruta, ...est.puntos] : est.puntos,
+            }
+          : v,
+      ),
+    );
+    if (!silencioso) {
+      mostrarToast(`📍 Listo: ${km.toFixed(1)} km · ${Math.max(1, Math.round(duracion / 60))} min guardados`);
+      vibrar(120);
+    }
+  }
+
+  // ▶ RESUME: si la app se recargó (o Android la mató por memoria)
+  // con una grabación en curso, al arrancar se retoma sola.
+  useEffect(() => {
+    const est = estadoRef.current;
+    if (est?.viajeId) {
+      pedirWakeLock();
+      iniciarWatchGPS();
+    }
+    // El wake lock se suelta solo cuando la pestaña queda oculta; al
+    // volver a verse se vuelve a pedir si la grabación sigue
+    const alVolverVisible = () => {
+      if (document.visibilityState === 'visible' && estadoRef.current) pedirWakeLock();
+    };
+    document.addEventListener('visibilitychange', alVolverVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', alVolverVisible);
+      pararWatch();
+      soltarWakeLock();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function exportarBackup() {
     descargarArchivo(
@@ -175,7 +353,15 @@ export default function App() {
                 mostrarToast('Pegá tu key de IA en 🤖 Escáner — Gemini gratis, 1 minuto');
               }}
             />
-            <ViajeList viajes={delDia} onEliminar={eliminarViaje} titulo="de hoy" config={config} />
+            <ViajeList
+              viajes={delDia}
+              onEliminar={eliminarViaje}
+              titulo="de hoy"
+              config={config}
+              viajeGPSActivo={estadoGPS?.viajeId ?? null}
+              onIniciarGPS={iniciarGPSViaje}
+              onDetenerGPS={() => detenerGPS()}
+            />
           </>
         )}
 
@@ -189,8 +375,13 @@ export default function App() {
               setCobrarAbierto(true);
             }}
             onToast={mostrarToast}
+            viajeGPSActivo={estadoGPS?.viajeId ?? null}
+            onIniciarGPS={iniciarGPSViaje}
+            onDetenerGPS={() => detenerGPS()}
           />
         )}
+
+        {tab === 'mapa' && <MapView viajes={viajes} />}
 
         {tab === 'ajustes' && (
           <AjustesView
@@ -203,6 +394,15 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* F-ID3: barra de grabación GPS en vivo (encima de la nav, en cualquier pestaña) */}
+      {estadoGPS && (
+        <GpsBar
+          estado={estadoGPS}
+          cliente={viajes.find(v => v.id === estadoGPS.viajeId)?.cliente ?? ''}
+          onDetener={() => detenerGPS()}
+        />
+      )}
 
       {/* Panel de cobro Yape */}
       {cobrarAbierto && (
@@ -224,11 +424,12 @@ export default function App() {
 
       {/* Nav inferior */}
       <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t border-slate-800 bg-slate-950/95 backdrop-blur">
-        <div className="grid grid-cols-3">
+        <div className="grid grid-cols-4">
           {(
             [
               { id: 'viajes' as Tab, nombre: 'Viajes', icon: Bike },
               { id: 'caja' as Tab, nombre: 'Caja', icon: Receipt },
+              { id: 'mapa' as Tab, nombre: 'Mapa', icon: MapIcon },
               { id: 'ajustes' as Tab, nombre: 'Ajustes', icon: Settings },
             ]
           ).map(t => {

@@ -1,8 +1,15 @@
 // ═══════════════════════════════════════════════════════════
-// 🏍️ DriverTrack — Tipos centrales (F-ID1 + F-ID2)
+// 🏍️ DriverTrack — Tipos centrales (F-ID1 + F-ID2 + F-ID3)
 // ═══════════════════════════════════════════════════════════
 
 export type OrigenViaje = 'indrive' | 'rappi' | 'pedidosya' | 'directo';
+
+// F-ID3: un punto del recorrido GPS grabado durante un viaje
+export interface PuntoRuta {
+  lat: number;  // redondeado a 5 decimales (~1 m)
+  lng: number;
+  t: number;    // epoch en SEGUNDOS (cuándo pasó por acá)
+}
 
 export interface Viaje {
   id: string;
@@ -15,6 +22,9 @@ export interface Viaje {
   celular: string;     // F-ID2.5: WhatsApp del cliente → botón de cobro
   yapeNombre: string;  // F-ID2.6: nombre de la cuenta yape del pedido (ej: "Mk" en "Mk yape 980811297")
   yapeNumero: string;  // F-ID2.6: número yape/plin del pedido — para saber QUIÉN pagó
+  kmGPS: number;       // F-ID3: km REALES grabados con GPS mientras manejabas (0 = sin grabar)
+  duracionSeg: number; // F-ID3: cuánto duró el trayecto grabado (segundos de movimiento)
+  ruta?: PuntoRuta[];  // F-ID3: el trazado para el mapa (se guarda comprimido, máx ~1500 puntos)
   tarifa: number;      // lo que cobra la app / el cliente
   comisionPct: number; // % que se queda la plataforma
   comision: number;    // monto de la comisión
