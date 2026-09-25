@@ -33,6 +33,36 @@ export interface Viaje {
   notas: string;
 }
 
+// ═══ F-ID6: 💸 Gastos del día ═══
+// "Hice varios viajes, me quedé sin saldo y recargué — que me descuente."
+// Todo lo que sale del bolsillo (recarga de saldo, gasolina, comida…)
+// se anota como gasto y se descuenta del neto → lo que queda EN MANO.
+export type TipoGasto = 'saldo' | 'gasolina' | 'comida' | 'otro';
+
+export interface Gasto {
+  id: string;
+  fecha: string;      // YYYY-MM-DD — el día que salió del bolsillo
+  hora: string;       // HH:MM
+  tipo: TipoGasto;
+  monto: number;      // lo que se gastó (S/), siempre positivo
+  nota: string;       // opcional — ej: "recarga completa"
+}
+
+export const TIPOS_GASTO: { id: TipoGasto; nombre: string; emoji: string }[] = [
+  { id: 'saldo', nombre: 'Recarga', emoji: '📶' },
+  { id: 'gasolina', nombre: 'Gasolina', emoji: '⛽' },
+  { id: 'comida', nombre: 'Comida', emoji: '🍔' },
+  { id: 'otro', nombre: 'Otro', emoji: '📦' },
+];
+
+export function nombreGasto(t: TipoGasto): string {
+  return TIPOS_GASTO.find(x => x.id === t)?.nombre ?? t;
+}
+
+export function emojiGasto(t: TipoGasto): string {
+  return TIPOS_GASTO.find(x => x.id === t)?.emoji ?? '📦';
+}
+
 export interface Billetera {
   numero: string;
   titular: string;

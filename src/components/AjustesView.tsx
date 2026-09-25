@@ -546,7 +546,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
             onClick={() => setBorrarConfirm(true)}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 py-2.5 text-xs font-bold text-red-400"
           >
-            <Trash2 size={14} /> Borrar todos los viajes
+            <Trash2 size={14} /> Borrar viajes y gastos
           </button>
         )}
       </section>
@@ -560,7 +560,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </p>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.4.0 (F-ID5) — Trackverse · Lima, PE
+        DriverTrack v0.4.1 (F-ID6) — Trackverse · Lima, PE
       </p>
     </div>
   );

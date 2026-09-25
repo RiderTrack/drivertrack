@@ -10,18 +10,21 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Bike, CheckCircle2, Map as MapIcon, Moon, QrCode, Receipt, Settings, Sun } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
-import { ConfigDT, Viaje } from './types';
+import { ConfigDT, Gasto, Viaje } from './types';
 import {
   cargarConfig,
+  cargarGastos,
   cargarViajes,
   fechaBonita,
   fechaHoy,
   guardarConfig,
+  guardarGastos,
   guardarViajes,
   marcarMetaCelebrada,
   metaYaCelebrada,
   normalizarConfig,
   resumenDia,
+  totalGastosDia,
 } from './storage';
 import { descargarArchivo, armarMensajeCobro, linkWhatsApp, normalizarCelular, vibrar } from './utils';
 import { enviarPorRobot } from './services/robot';
@@ -51,6 +54,10 @@ type Tab = 'viajes' | 'caja' | 'mapa' | 'stats' | 'ajustes';
 export default function App() {
   const [tab, setTab] = useState<Tab>('viajes');
   const [viajes, setViajes] = useState<Viaje[]>(() => cargarViajes());
+  // F-ID6: 💸 gastos del día (recargas, gasolina…) — se descuentan del
+  // neto para mostrar lo que queda EN MANO. Viven igual que los viajes:
+  // en el teléfono, y entran en el backup.
+  const [gastos, setGastos] = useState<Gasto[]>(() => cargarGastos());
   const [config, setConfig] = useState<ConfigDT>(() => cargarConfig());
   const [confeti, setConfeti] = useState(false);
   const [toast, setToast] = useState('');
@@ -79,11 +86,19 @@ export default function App() {
   const hoy = fechaHoy();
   const resumenHoy = useMemo(() => resumenDia(viajes, hoy), [viajes, hoy]);
   const delDia = useMemo(() => viajes.filter(v => v.fecha === hoy), [viajes, hoy]);
+  // F-ID6: lo que quedó EN MANO hoy (neto de viajes − gastos anotados)
+  const gastosHoy = useMemo(() => totalGastosDia(gastos, hoy), [gastos, hoy]);
+  const enManoHoy = resumenHoy.neto - gastosHoy;
 
   // Persistencia automática
   useEffect(() => {
     guardarViajes(viajes);
   }, [viajes]);
+
+  // F-ID6: los gastos también se guardan solos
+  useEffect(() => {
+    guardarGastos(gastos);
+  }, [gastos]);
 
   // 🎯 Detección de meta cumplida (1 celebración por día)
   useEffect(() => {
@@ -113,6 +128,18 @@ export default function App() {
   function agregarViaje(v: Viaje) {
     setViajes(prev => [...prev, v]);
     vibrar(120);
+  }
+
+  // ═══ F-ID6: 💸 gastos que descuentan del neto ═══
+  function agregarGasto(g: Gasto) {
+    setGastos(prev => [...prev, g]);
+    vibrar(80);
+    mostrarToast('💸 Gasto anotado — ya descuenta del neto de hoy');
+  }
+
+  function eliminarGasto(id: string) {
+    setGastos(prev => prev.filter(g => g.id !== id));
+    mostrarToast('Gasto eliminado');
   }
 
   // F-ID2.7: el Yape PROPIO del driver se guarda UNA vez (desde la
@@ -388,7 +415,8 @@ export default function App() {
   function exportarBackup() {
     descargarArchivo(
       `drivertrack-backup-${hoy}.json`,
-      JSON.stringify({ version: 1, fechaExport: new Date().toISOString(), viajes, config }, null, 2),
+      // F-ID6: los gastos viajan dentro del backup (version 2)
+      JSON.stringify({ version: 2, fechaExport: new Date().toISOString(), viajes, gastos, config }, null, 2),
     );
     mostrarToast('Backup exportado 💾');
   }
@@ -397,6 +425,8 @@ export default function App() {
     try {
       const data = JSON.parse(texto);
       if (Array.isArray(data.viajes)) setViajes(data.viajes);
+      // F-ID6: backups NUEVOS traen gastos; los VIEJOS no → no se toca nada
+      if (Array.isArray(data.gastos)) setGastos(data.gastos);
       if (data.config) {
         // F-ID3.3: normaliza el config (los backups viejos no traen
         // miNombre/miCelular → undefined.trim() reventaría el QR 📱)
@@ -412,7 +442,8 @@ export default function App() {
 
   function borrarTodo() {
     setViajes([]);
-    mostrarToast('Se borraron todos los viajes');
+    setGastos([]); // F-ID6: se borra todo — viajes Y gastos
+    mostrarToast('Se borraron todos los viajes y gastos');
   }
 
   return (
@@ -451,9 +482,20 @@ export default function App() {
             >
               {tema === 'claro' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
+            {/* F-ID6: el número del header es el REAL — cuando anotaste
+                gastos pasa de "Neto hoy" a "En mano hoy" (neto − gastos) */}
             <div className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-right">
-              <p className="text-[9px] font-medium uppercase tracking-wide text-emerald-500/80">Neto hoy</p>
-              <p className="text-sm font-black leading-none text-emerald-400">S/ {resumenHoy.neto.toFixed(2)}</p>
+              <p className="text-[9px] font-medium uppercase tracking-wide text-emerald-500/80">
+                {gastosHoy > 0 ? 'En mano hoy' : 'Neto hoy'}
+              </p>
+              <p
+                className={`text-sm font-black leading-none ${
+                  enManoHoy < 0 ? 'text-red-400' : 'text-emerald-400'
+                }`}
+                data-testid="neto-header"
+              >
+                {enManoHoy < 0 ? `−S/ ${Math.abs(enManoHoy).toFixed(2)}` : `S/ ${enManoHoy.toFixed(2)}`}
+              </p>
             </div>
           </div>
         </div>
@@ -493,6 +535,9 @@ export default function App() {
           <CajaView
             viajes={viajes}
             config={config}
+            gastos={gastos}
+            onAgregarGasto={agregarGasto}
+            onEliminarGasto={eliminarGasto}
             onEliminar={eliminarViaje}
             onCobrar={monto => {
               if (monto <= 0) return mostrarToast('Hoy no hay neto que cobrar todavía');

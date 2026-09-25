@@ -3,10 +3,11 @@
 // Local-first: los datos viven en el teléfono. Backup JSON en Ajustes.
 // ═══════════════════════════════════════════════════════════
 
-import { ConfigDT, ResumenDia, Viaje } from './types';
+import { ConfigDT, Gasto, ResumenDia, TIPOS_GASTO, TipoGasto, Viaje } from './types';
 
 const K_VIAJES = 'dt_viajes_v1';
 const K_CONFIG = 'dt_config_v1';
+const K_GASTOS = 'dt_gastos_v1'; // F-ID6: 💸 gastos que descuentan del neto
 const K_META_FECHA = 'dt_meta_celebrada_fecha';
 
 export const CONFIG_DEFECTO: ConfigDT = {
@@ -136,6 +137,44 @@ export function cargarConfig(): ConfigDT {
 
 export function guardarConfig(c: ConfigDT): void {
   localStorage.setItem(K_CONFIG, JSON.stringify(c));
+}
+
+// ── F-ID6: 💸 Gastos (recargas, gasolina, comida…) ──
+
+export function cargarGastos(): Gasto[] {
+  try {
+    const raw = localStorage.getItem(K_GASTOS);
+    if (!raw) return [];
+    const lista = JSON.parse(raw) as Partial<Gasto>[];
+    // Migración defensiva: un gasto guardado raro (sin tipo, sin hora)
+    // no rompe la Caja — se completa con defaults
+    return lista
+      .filter(g => g && typeof g.monto === 'number' && g.monto > 0)
+      .map(g => ({
+        ...g,
+        id: g.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        fecha: g.fecha ?? fechaHoy(),
+        hora: g.hora ?? '',
+        tipo: (TIPOS_GASTO.some(t => t.id === g.tipo) ? g.tipo : 'otro') as TipoGasto,
+        monto: +Number(g.monto).toFixed(2),
+        nota: g.nota ?? '',
+      })) as Gasto[];
+  } catch {
+    return [];
+  }
+}
+
+export function guardarGastos(g: Gasto[]): void {
+  try {
+    localStorage.setItem(K_GASTOS, JSON.stringify(g));
+  } catch {
+    /* si no hay espacio, se pierde el guardado pero no crashea la app */
+  }
+}
+
+/** F-ID6: cuánto salió del bolsillo en un día (para descontarlo del neto) */
+export function totalGastosDia(gastos: Gasto[], fecha: string): number {
+  return gastos.filter(g => g.fecha === fecha).reduce((s, g) => s + g.monto, 0);
 }
 
 // ── Meta del día: se celebra 1 vez por día (no cada vez que abre la app) ──
