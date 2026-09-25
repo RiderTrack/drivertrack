@@ -66,10 +66,11 @@ function PanelBilletera({
         />
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <input ref={inputQR} type="file" accept="image/*" onChange={subirQR} className="hidden" />
+        <input ref={inputQR} type="file" accept="image/*" onChange={subirQR} className="hidden" data-testid={`billetera-input-${titulo.toLowerCase()}`} />
         <button
           onClick={() => inputQR.current?.click()}
           className="flex-1 rounded-xl bg-slate-700 py-2 text-xs font-bold text-slate-200"
+          data-testid={`billetera-subir-${titulo.toLowerCase()}`}
         >
           📸 {billetera.qrBase64 ? 'Cambiar QR' : 'Subir QR (foto de tu app)'}
         </button>
@@ -79,6 +80,7 @@ function PanelBilletera({
               src={billetera.qrBase64}
               alt={`QR ${titulo}`}
               className="h-10 w-10 rounded-lg border border-slate-600 object-cover"
+              data-testid={`billetera-thumb-${titulo.toLowerCase()}`}
             />
             <button
               onClick={() => onChange({ ...billetera, qrBase64: '' })}
@@ -327,7 +329,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
         titulo="Yape"
         emoji="💜"
         billetera={yape}
-        nota="Este número sale solo en el mensaje de cobro de WhatsApp (botón Cobrar en Viajes) — también lo podés guardar ahí una vez."
+        nota="Este QR es el MISMO que se muestra GRANDE en tu Mi QR 💜 (botón QR del header) y en el panel de cobro — subilo una vez y listo. El número sale en el mensaje de cobro de WhatsApp."
         onChange={setYape}
       />
       <PanelBilletera titulo="Plin" emoji="🔷" billetera={plin} onChange={setPlin} />
@@ -429,7 +431,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </p>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.3.3 (F-ID3.3) — Trackverse · Lima, PE
+        DriverTrack v0.3.4 (F-ID3.4) — Trackverse · Lima, PE
       </p>
     </div>
   );

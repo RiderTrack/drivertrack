@@ -126,13 +126,28 @@ export default function App() {
     mostrarToast('💜 Tu Yape quedó guardado — ya sale en todos los cobros');
   }
 
-  // F-ID3.3: tu nombre + celular para el QR — se guarda UNA vez
-  // (igual que tu Yape) y arma el QR que le mostrás a los clientes
-  function guardarMiContacto(nombre: string, celular: string) {
+  // F-ID3.3 + F-ID3.4: tu nombre + celular para el QR — se guardan UN
+  // vez (igual que tu Yape). qrYape (si viene) también actualiza tu
+  // QR de Yape en la MISMA pasada (nada de estados que se pisan)
+  function guardarMiContacto(nombre: string, celular: string, qrYape?: string) {
     const c: ConfigDT = { ...config, miNombre: nombre, miCelular: celular };
+    if (qrYape !== undefined) c.yape = { ...c.yape, qrBase64: qrYape };
     guardarConfig(c);
     setConfig(c);
-    mostrarToast('📱 Tu QR quedó listo — mostraselo al cliente y te escanea');
+    mostrarToast(
+      qrYape
+        ? '💜 Tu QR de Yape quedó guardado — mostraselo al cliente y te paga'
+        : '📱 Tu QR quedó listo — mostraselo al cliente y te escanea'
+    );
+  }
+
+  // F-ID3.4: subir/cambiar/quitar tu QR de Yape directo desde Mi QR
+  // (la misma imagen que usan Ajustes → Yape y el panel de cobro)
+  function guardarQrYape(b64: string) {
+    const c: ConfigDT = { ...config, yape: { ...config.yape, qrBase64: b64 } };
+    guardarConfig(c);
+    setConfig(c);
+    mostrarToast(b64 ? '💜 Tu QR de Yape quedó guardado' : 'QR de Yape quitado');
   }
 
   function eliminarViaje(id: string) {
@@ -471,11 +486,13 @@ export default function App() {
         />
       )}
 
-      {/* F-ID3.3: 📱 Mi QR — tu contacto con nombre, para los clientes */}
+      {/* F-ID3.3 + F-ID3.4: 📱 Mi QR — 💜 tu QR de Yape para que te paguen
+          (y también WhatsApp/Contacto con tu nombre) */}
       {qrAbierto && (
         <MiQrModal
           config={config}
           onGuardar={guardarMiContacto}
+          onGuardarQrYape={guardarQrYape}
           onCerrar={() => setQrAbierto(false)}
           onToast={mostrarToast}
         />
