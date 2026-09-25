@@ -31,7 +31,7 @@
 //        a mano, igual que RiderTrack v2).
 //        📞 LLAMAR — botón junto a Cobrar que abre el marcador.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, Compass, ImageUp, Loader2, MapPin, MessageCircle, Phone, Plus, X, Zap } from 'lucide-react';
+import { Bot, Camera, Check, Compass, ImageUp, Loader2, MapPin, MessageCircle, Phone, Plus, X, Zap } from 'lucide-react';
 import { ConfigDT, OrigenViaje, ORIGENES, Viaje } from '../types';
 import { fechaHoy, horaAhora } from '../storage';
 import { armarMensajeCobro, fmtSoles, linkLlamada, linkWhatsApp, normalizarCelular, vibrar } from '../utils';
@@ -110,9 +110,12 @@ interface Props {
   onAgregar: (v: Viaje) => void;
   onGuardarMiYape: (numero: string, titular: string) => void; // F-ID2.7: tu Yape queda guardado 1 sola vez
   onNecesitaKey: () => void; // F-ID2: te manda a Ajustes si no hay key Gemini
+  // F-ID5: cobro compartido — robot automático si está activo, si no WhatsApp
+  onMandarCobro: (datos: { cliente: string; monto: number; direccion: string }, celular: string) => Promise<void> | void;
+  cobroEnCurso?: boolean; // F-ID5: hay un cobro del robot en vuelo (spinner)
 }
 
-export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesitaKey }: Props) {
+export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesitaKey, onMandarCobro, cobroEnCurso = false }: Props) {
   // F-ID3.2: el formulario arranca desde el BORRADOR guardado (si
   // había algo escrito/escaneado, NO se pierde al cambiar de pestaña)
   const borradorInicial = useRef(leerBorrador()).current;
@@ -302,17 +305,21 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
     setEditarMiYape(true);
   }
 
-  // Abre WhatsApp con el mensaje listo — no envía solo: el driver
-  // lo revisa y apreta enviar (así como el QR de RiderTrack v2)
-  function mandarWhatsApp() {
+  // F-ID5: 💬/🤖 Cobrar — delega en el flujo COMPARTIDO del shell:
+  // con el robot activo, el bot manda el mensaje CON tu QR de Yape
+  // solo; si no, abre WhatsApp como siempre (revisás y envía vos).
+  function cobrar() {
     const cel = normalizarCelular(celular);
     if (!cel) {
-      setError('Poné el celular del cliente para mandarle el WhatsApp');
+      setError('Poné el celular del cliente para mandarle el cobro');
       return;
     }
     setError('');
-    window.open(linkWhatsApp(cel, armarMensaje()), '_blank');
     vibrar(60);
+    onMandarCobro(
+      { cliente, monto: parseFloat(tarifa) || 0, direccion },
+      celular,
+    );
   }
 
   // F-ID3.2: 📞 llamada directa — abre el marcador del teléfono
@@ -641,18 +648,30 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
         >
           <Phone size={16} />
         </button>
+        {/* F-ID5: 💬 Cobrar manual / 🤖 Cobrar automático por el robot */}
         <button
-          onClick={mandarWhatsApp}
-          disabled={escaneando}
-          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#25D366] px-3 py-2.5 text-xs font-black text-slate-950 transition-all active:scale-[0.98] disabled:opacity-50"
+          onClick={cobrar}
+          disabled={escaneando || cobroEnCurso}
+          className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-black transition-all active:scale-[0.98] disabled:opacity-50 ${
+            config.robotActivo ? 'bg-violet-500 text-white' : 'bg-[#25D366] text-slate-950'
+          }`}
           data-testid="boton-whatsapp"
         >
-          <MessageCircle size={16} /> Cobrar
+          {cobroEnCurso ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : config.robotActivo ? (
+            <Bot size={16} />
+          ) : (
+            <MessageCircle size={16} />
+          )}
+          {cobroEnCurso ? 'Mandando…' : 'Cobrar'}
         </button>
       </div>
       {celular.trim() && (
-        <p className="mt-1 text-[10px] text-slate-500">
-          💬 El botón Cobrar abre el WhatsApp del cliente con el mensaje de pago listo · 📞 el teléfono lo llama directo
+        <p className="mt-1 text-[10px] text-slate-500" data-testid="nota-cobro">
+          {config.robotActivo
+            ? '🤖 El robot le manda el cobro SOLO al cliente, con tu QR de Yape adentro · si no responde, abre WhatsApp'
+            : '💬 El botón Cobrar abre el WhatsApp del cliente con el mensaje de pago listo · 📞 el teléfono lo llama directo'}
         </p>
       )}
 

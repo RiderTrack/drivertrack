@@ -18,6 +18,9 @@ export const CONFIG_DEFECTO: ConfigDT = {
   claudeKey: '',
   miNombre: '',
   miCelular: '',
+  robotActivo: false,
+  robotUrl: 'http://127.0.0.1:3001',
+  robotToken: 'rudy-drivertrack',
 };
 
 export function fechaHoy(): string {
@@ -104,6 +107,9 @@ export function normalizarConfig(c: Partial<ConfigDT>): ConfigDT {
     plin: { ...CONFIG_DEFECTO.plin, ...(c.plin ?? {}) },
     miNombre: (c.miNombre ?? '').trim(),
     miCelular: (c.miCelular ?? '').trim(),
+    robotActivo: c.robotActivo === true,
+    robotUrl: (c.robotUrl ?? '').trim() || 'http://127.0.0.1:3001',
+    robotToken: (c.robotToken ?? '').trim() || 'rudy-drivertrack',
   };
 }
 

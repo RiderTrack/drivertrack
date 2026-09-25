@@ -14,10 +14,12 @@
 // marcador) — junto al 💬 de WhatsApp.
 // F-ID3.3: botón 🧭 para VIAJAR a la entrega con Waze o Google
 // Maps (junto al 📍 de GPS) + mini-selector de app.
+// F-ID5: el 💬 pasa por el flujo compartido de cobro — con el robot
+// activo manda el mensaje CON tu QR solo (🤖); si no, WhatsApp manual.
 import { useState } from 'react';
-import { Compass, MessageCircle, Navigation, Phone, Square, Trash2 } from 'lucide-react';
+import { Bot, Compass, Loader2, MessageCircle, Navigation, Phone, Square, Trash2 } from 'lucide-react';
 import { ConfigDT, nombreOrigen, Viaje } from '../types';
-import { armarMensajeCobro, fmtSoles, linkLlamada, linkWhatsApp, normalizarCelular } from '../utils';
+import { fmtSoles, linkLlamada } from '../utils';
 import { formatearDuracion } from '../services/gps';
 import { abrirNavegacion, tieneDestino } from '../services/navegacion';
 import NavegarMenu from './NavegarMenu';
@@ -30,6 +32,10 @@ interface Props {
   viajeGPSActivo?: string | null;      // F-ID3: id del viaje que se está grabando
   onIniciarGPS?: (id: string) => void; // F-ID3: arrancar la grabación
   onDetenerGPS?: () => void;           // F-ID3: terminar la grabación
+  // F-ID5: flujo de cobro compartido del shell (robot si está activo,
+  // WhatsApp manual si no — mismo mensaje por bloques en ambos casos)
+  onMandarCobro: (datos: { cliente: string; monto: number; direccion: string }, celular: string) => Promise<void> | void;
+  cobroEnCurso?: boolean; // F-ID5: hay un cobro del robot en vuelo
 }
 
 export default function ViajeList({
@@ -40,6 +46,8 @@ export default function ViajeList({
   viajeGPSActivo,
   onIniciarGPS,
   onDetenerGPS,
+  onMandarCobro,
+  cobroEnCurso = false,
 }: Props) {
   const [confirmarId, setConfirmarId] = useState<string | null>(null);
   // F-ID3.3: qué viaje tiene abierto el mini-selector Waze/Google
@@ -172,24 +180,30 @@ export default function ViajeList({
                 </button>
                 <button
                   onClick={() =>
-                    window.open(
-                      linkWhatsApp(
-                        normalizarCelular(v.celular),
-                        // F-ID2.8: MISMA función compartida que el botón
-                        // Cobrar de arriba — mensaje completo por bloques
-                        armarMensajeCobro(
-                          { cliente: v.cliente, monto: v.tarifa, direccion: v.direccion },
-                          config,
-                        ),
-                      ),
-                      '_blank',
+                    // F-ID2.8 + F-ID5: MISMO mensaje del botón Cobrar de
+                    // arriba; con el robot activo lo manda el bot SOLO
+                    onMandarCobro(
+                      { cliente: v.cliente, monto: v.tarifa, direccion: v.direccion },
+                      v.celular,
                     )
                   }
-                  className="rounded-lg bg-[#25D366]/15 p-2 text-[#25D366] transition-colors hover:bg-[#25D366]/25"
-                  aria-label="Mandar mensaje de cobro por WhatsApp"
+                  disabled={cobroEnCurso}
+                  className={`rounded-lg p-2 transition-colors disabled:opacity-40 ${
+                    config.robotActivo
+                      ? 'bg-violet-500/15 text-violet-300 hover:bg-violet-500/25'
+                      : 'bg-[#25D366]/15 text-[#25D366] hover:bg-[#25D366]/25'
+                  }`}
+                  aria-label="Mandar mensaje de cobro al cliente"
+                  title={config.robotActivo ? 'Mandar el cobro por el robot (con tu QR)' : 'Mandar el cobro por WhatsApp'}
                   data-testid="boton-whatsapp-lista"
                 >
-                  <MessageCircle size={16} />
+                  {cobroEnCurso ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : config.robotActivo ? (
+                    <Bot size={16} />
+                  ) : (
+                    <MessageCircle size={16} />
+                  )}
                 </button>
               </div>
             )}

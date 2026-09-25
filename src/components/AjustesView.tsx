@@ -9,6 +9,7 @@ import { CONFIG_DEFECTO, guardarConfig } from '../storage';
 import { comprimirImagen, descargarArchivo } from '../utils';
 import { probarKeyIA } from '../services/escanerIA';
 import { AppNavegacion, EVENTO_NAV_CHANGED, getAppNavegacion, setAppNavegacion } from '../services/navegacion';
+import { pingRobot, URL_ROBOT_DEFECTO, TOKEN_ROBOT_DEFECTO } from '../services/robot';
 
 interface Props {
   config: ConfigDT;
@@ -108,6 +109,25 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
   const [prueba, setPrueba] = useState<{ ok: boolean; mensaje: string } | null>(null);
   // F-ID3.3: con qué app navegar a las entregas (Google/Waze/preguntar)
   const [navApp, setNavApp] = useState<AppNavegacion>(() => getAppNavegacion());
+  // F-ID5: 🤖 robot WhatsApp — cobro automático
+  const [robotActivo, setRobotActivo] = useState(config.robotActivo);
+  const [robotUrl, setRobotUrl] = useState(config.robotUrl);
+  const [robotToken, setRobotToken] = useState(config.robotToken);
+  const [robotEstado, setRobotEstado] = useState<'sin-probar' | 'probando' | 'online' | 'offline'>('sin-probar');
+  const [avanzado, setAvanzado] = useState(false);
+
+  async function probarRobot() {
+    setRobotEstado('probando');
+    const r = await pingRobot(robotUrl.trim() || URL_ROBOT_DEFECTO);
+    setRobotEstado(r.enLinea ? 'online' : 'offline');
+  }
+
+  // Al entrar a Ajustes con el robot activo → probar silenciosamente
+  // (así el semáforo ya está fresco sin tocar nada)
+  useEffect(() => {
+    if (config.robotActivo) probarRobot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Si la preferencia cambia desde el mini-selector (o desde otro
   // lado), el selector de acá se entera al toque
@@ -136,6 +156,9 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       plin,
       geminiKey: geminiKey.trim(),
       claudeKey: claudeKey.trim(),
+      robotActivo,
+      robotUrl: robotUrl.trim() || URL_ROBOT_DEFECTO,
+      robotToken: robotToken.trim() || TOKEN_ROBOT_DEFECTO,
     };
   }
 
@@ -154,7 +177,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
     guardarConfig(c);
     onGuardar(c);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, comisiones, yape, plin, geminiKey, claudeKey]);
+  }, [meta, comisiones, yape, plin, geminiKey, claudeKey, robotActivo, robotUrl, robotToken]);
 
   async function probarKey() {
     setProbando(true);
@@ -180,6 +203,9 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
         setPlin({ ...CONFIG_DEFECTO.plin, ...data.config.plin });
         setGeminiKey(data.config.geminiKey ?? '');
         setClaudeKey(data.config.claudeKey ?? '');
+        setRobotActivo(data.config.robotActivo === true);
+        setRobotUrl(data.config.robotUrl ?? URL_ROBOT_DEFECTO);
+        setRobotToken(data.config.robotToken ?? TOKEN_ROBOT_DEFECTO);
       }
     } catch {
       /* App ya muestra el toast de archivo inválido */
@@ -368,6 +394,109 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
         </div>
       </section>
 
+      {/* F-ID5: 🤖 Robot WhatsApp — cobro automático con tu QR */}
+      <section className="rounded-2xl border border-violet-500/30 bg-violet-500/5 p-4" data-testid="seccion-robot">
+        <div className="flex items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-xs font-bold text-violet-300">
+            <Bot size={14} /> Robot WhatsApp (cobro automático)
+          </p>
+          {/* Interruptor */}
+          <button
+            onClick={() => {
+              const nuevo = !robotActivo;
+              setRobotActivo(nuevo);
+              if (nuevo) probarRobot(); // al prenderlo, probás que esté vivo
+            }}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+              robotActivo ? 'bg-violet-500' : 'bg-slate-700'
+            }`}
+            role="switch"
+            aria-checked={robotActivo}
+            aria-label="Activar el robot de cobro"
+            data-testid="robot-toggle"
+          >
+            <span
+              className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                robotActivo ? 'left-6' : 'left-1'
+              }`}
+            />
+          </button>
+        </div>
+        <p className="mt-1 text-[11px] leading-snug text-slate-400">
+          Con el robot prendido, el botón <b className="text-violet-300">Cobrar</b> le manda al cliente el
+          mensaje de pago <b className="text-violet-300">con tu QR de Yape adentro</b> — solo, sin abrir
+          WhatsApp. Si el robot no responde, la app abre WhatsApp como siempre (nunca te quedás sin cobrar).
+          Necesita tu rudy-bot corriendo en este teléfono con el parche F-ID5.
+        </p>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            onClick={probarRobot}
+            disabled={robotEstado === 'probando'}
+            className="flex items-center gap-1.5 rounded-xl bg-violet-500/15 px-3 py-2 text-[11px] font-bold text-violet-300 disabled:opacity-60"
+            data-testid="robot-probar"
+          >
+            {robotEstado === 'probando' ? <Loader2 size={13} className="animate-spin" /> : null}
+            {robotEstado === 'probando' ? 'Probando…' : 'Probar conexión'}
+          </button>
+          {robotEstado !== 'probando' && (
+            <p
+              className={`text-[11px] font-semibold ${
+                robotEstado === 'online'
+                  ? 'text-emerald-400'
+                  : robotEstado === 'offline'
+                    ? 'text-red-400'
+                    : 'text-slate-500'
+              }`}
+              data-testid="robot-estado"
+            >
+              {robotEstado === 'online'
+                ? '🟢 Robot en línea — listo para cobrar'
+                : robotEstado === 'offline'
+                  ? '🔴 No responde — ¿está corriendo el bot?'
+                  : '⚪ Sin probar'}
+            </p>
+          )}
+        </div>
+
+        <button
+          onClick={() => setAvanzado(!avanzado)}
+          className="mt-2 text-[10px] font-semibold text-slate-500 underline decoration-dotted"
+          data-testid="robot-avanzado"
+        >
+          {avanzado ? '▾ Ocultar avanzado' : '▸ Avanzado (URL y token)'}
+        </button>
+        {avanzado && (
+          <div className="mt-2 space-y-2">
+            <div>
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">URL del puente</p>
+              <input
+                value={robotUrl}
+                onChange={e => setRobotUrl(e.target.value)}
+                placeholder={URL_ROBOT_DEFECTO}
+                className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 font-mono text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-violet-400"
+                data-testid="robot-url"
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Token (igual que en el bot)</p>
+              <input
+                value={robotToken}
+                onChange={e => setRobotToken(e.target.value)}
+                placeholder={TOKEN_ROBOT_DEFECTO}
+                className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 font-mono text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-violet-400"
+                data-testid="robot-token"
+              />
+            </div>
+            <p className="text-[10px] leading-snug text-slate-500">
+              Defaults: <span className="font-mono">{URL_ROBOT_DEFECTO}</span> · token{' '}
+              <span className="font-mono">{TOKEN_ROBOT_DEFECTO}</span> — coinciden con el parche del bot tal
+              cual viene. Solo tocálos si los cambiaste en <span className="font-mono">puente_drivertrack.js</span>.
+            </p>
+          </div>
+        )}
+      </section>
+
       {/* Backup */}
       <section className="rounded-2xl border border-slate-700 bg-slate-800/40 p-4">
         <p className="text-xs font-bold text-slate-300">🗄️ Respaldo de datos</p>
@@ -431,7 +560,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </p>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.3.5 (F-ID4) — Trackverse · Lima, PE
+        DriverTrack v0.4.0 (F-ID5) — Trackverse · Lima, PE
       </p>
     </div>
   );

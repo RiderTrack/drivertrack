@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, MessageCircle, QrCode } from 'lucide-react';
 import { ConfigDT, nombreOrigen, Viaje } from '../types';
 import { fechaBonita, fechaHoy, resumenDia } from '../storage';
-import { descargarArchivo, fmtSoles } from '../utils';
+import { armarMensajeCobro, descargarArchivo, fmtSoles, linkWhatsApp, normalizarCelular } from '../utils';
 import ViajeList from './ViajeList';
 
 interface Props {
@@ -17,6 +17,9 @@ interface Props {
   viajeGPSActivo?: string | null;         // F-ID3: pasa through a la lista
   onIniciarGPS?: (id: string) => void;    // F-ID3
   onDetenerGPS?: () => void;              // F-ID3
+  // F-ID5: flujo de cobro compartido (robot si está activo) — pasa through
+  onMandarCobro?: (datos: { cliente: string; monto: number; direccion: string }, celular: string) => Promise<void> | void;
+  cobroEnCurso?: boolean;
 }
 
 function sumarDias(fecha: string, dias: number): string {
@@ -34,6 +37,8 @@ export default function CajaView({
   viajeGPSActivo,
   onIniciarGPS,
   onDetenerGPS,
+  onMandarCobro,
+  cobroEnCurso = false,
 }: Props) {
   const [fecha, setFecha] = useState(fechaHoy());
   const resumen = useMemo(() => resumenDia(viajes, fecha), [viajes, fecha]);
@@ -164,6 +169,14 @@ export default function CajaView({
         viajeGPSActivo={viajeGPSActivo}
         onIniciarGPS={onIniciarGPS}
         onDetenerGPS={onDetenerGPS}
+        onMandarCobro={
+          onMandarCobro ??
+          ((datos, cel) => {
+            // sin shell-passthrough (no debería pasar): WhatsApp manual
+            window.open(linkWhatsApp(normalizarCelular(cel), armarMensajeCobro(datos, config)), '_blank');
+          })
+        }
+        cobroEnCurso={cobroEnCurso}
       />
     </div>
   );

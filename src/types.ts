@@ -48,6 +48,9 @@ export interface ConfigDT {
   claudeKey: string;                        // F-ID2.5: token de Anthropic — el escáner lo usa de RESPALDO si Gemini falla
   miNombre: string;                         // F-ID3.3: TU nombre — sale grande en tu QR para los clientes
   miCelular: string;                        // F-ID3.3: TU WhatsApp — el QR lo abre directo (una vez, como tu Yape)
+  robotActivo: boolean;                     // F-ID5: el botón Cobrar manda el cobro por el robot (automático, con tu QR)
+  robotUrl: string;                         // F-ID5: dónde escucha el puente del robot (mismo teléfono → localhost)
+  robotToken: string;                       // F-ID5: secreto compartido con el puente (tiene que ser IGUAL en el bot)
 }
 
 export interface ResumenDia {

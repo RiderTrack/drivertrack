@@ -23,7 +23,8 @@ import {
   normalizarConfig,
   resumenDia,
 } from './storage';
-import { descargarArchivo, vibrar } from './utils';
+import { descargarArchivo, armarMensajeCobro, linkWhatsApp, normalizarCelular, vibrar } from './utils';
+import { enviarPorRobot } from './services/robot';
 import { aplicarTema, cargarTema, guardarTema, Tema } from './theme';
 import {
   borrarEstadoGPS,
@@ -149,6 +150,53 @@ export default function App() {
     guardarConfig(c);
     setConfig(c);
     mostrarToast(b64 ? '💜 Tu QR de Yape quedó guardado' : 'QR de Yape quitado');
+  }
+
+  // ═══ F-ID5: 🤖 cobro AUTOMÁTICO por el robot ═══
+  // UN solo flujo compartido para el botón Cobrar del formulario y el
+  // 💬/🤖 de la lista. Si el robot está activo, el bot (Termux, en este
+  // mismo teléfono) le manda al cliente el mensaje de cobro CON LA
+  // IMAGEN de tu QR de Yape — sin abrir WhatsApp. Si no responde, la
+  // app cae SOLA al wa.me de siempre: el cobro nunca se traba.
+  const [cobroEnCurso, setCobroEnCurso] = useState(false);
+
+  async function mandarCobro(
+    datos: { cliente: string; monto: number; direccion: string },
+    celular: string,
+  ): Promise<void> {
+    const cel = normalizarCelular(celular);
+    if (!cel) {
+      mostrarToast('Poné el celular del cliente para mandarle el cobro');
+      return;
+    }
+    const texto = armarMensajeCobro(datos, config);
+
+    // Robot apagado → como siempre: WhatsApp manual (revisás y envía vos)
+    if (!config.robotActivo) {
+      window.open(linkWhatsApp(cel, texto), '_blank');
+      vibrar(60);
+      return;
+    }
+
+    // Robot activo → automático: mensaje + tu QR de Yape en la misma torta
+    setCobroEnCurso(true);
+    mostrarToast('🤖 Mandando el cobro por el robot…');
+    const r = await enviarPorRobot({
+      url: config.robotUrl,
+      token: config.robotToken,
+      telefono: cel,
+      texto,
+      imagenBase64: config.yape.qrBase64 || undefined,
+    });
+    setCobroEnCurso(false);
+    if (r.ok) {
+      mostrarToast('✓ Cobro enviado con tu QR 💜 — el cliente ya lo tiene');
+      vibrar(120);
+      return;
+    }
+    // Fallback prolijo: nunca te quedás sin cobrar
+    mostrarToast('⚠️ ' + r.error + ' · abro WhatsApp…');
+    window.open(linkWhatsApp(cel, texto), '_blank');
   }
 
   function eliminarViaje(id: string) {
@@ -420,6 +468,8 @@ export default function App() {
               config={config}
               onAgregar={agregarViaje}
               onGuardarMiYape={guardarMiYape}
+              onMandarCobro={mandarCobro}
+              cobroEnCurso={cobroEnCurso}
               onNecesitaKey={() => {
                 setTab('ajustes');
                 mostrarToast('Pegá tu key de IA en 🤖 Escáner — Gemini gratis, 1 minuto');
@@ -433,6 +483,8 @@ export default function App() {
               viajeGPSActivo={estadoGPS?.viajeId ?? null}
               onIniciarGPS={iniciarGPSViaje}
               onDetenerGPS={() => detenerGPS()}
+              onMandarCobro={mandarCobro}
+              cobroEnCurso={cobroEnCurso}
             />
           </>
         )}
@@ -450,6 +502,8 @@ export default function App() {
             viajeGPSActivo={estadoGPS?.viajeId ?? null}
             onIniciarGPS={iniciarGPSViaje}
             onDetenerGPS={() => detenerGPS()}
+            onMandarCobro={mandarCobro}
+            cobroEnCurso={cobroEnCurso}
           />
         )}
 

@@ -64,6 +64,28 @@ jobs:
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n    <application|' "$MANIFEST"
 
+      # F-ID5: 🤖 el robot de cobro vive en Termux, en ESTE mismo teléfono.
+      # La app le habla por http://127.0.0.1:3001 — Android bloquea HTTP
+      # "en claro" por defecto (API 28+) → esta config lo permite SOLO
+      # para localhost/127.0.0.1 (el resto del tráfico sigue exigiendo
+      # HTTPS). Sin esto, el fetch al puente falla en silencio.
+      - name: Allow cleartext to localhost only (F-ID5 robot bridge)
+        run: |
+          mkdir -p android/app/src/main/res/xml
+          cat > android/app/src/main/res/xml/network_security_config.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <network-security-config>
+              <base-config cleartextTrafficPermitted="false" />
+              <domain-config cleartextTrafficPermitted="true">
+                  <domain includeSubdomains="false">127.0.0.1</domain>
+                  <domain includeSubdomains="false">localhost</domain>
+              </domain-config>
+          </network-security-config>
+          EOF
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          sed -i 's|android:allowBackup="true"|android:allowBackup="true"\n        android:networkSecurityConfig="@xml/network_security_config"|' "$MANIFEST"
+          grep -q "networkSecurityConfig" "$MANIFEST" && echo "✅ networkSecurityConfig agregado al manifest"
+
       - name: Set Gradle permissions
         run: chmod +x android/gradlew
 
