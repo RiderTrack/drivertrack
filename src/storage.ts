@@ -16,6 +16,8 @@ export const CONFIG_DEFECTO: ConfigDT = {
   plin: { numero: '', titular: '', qrBase64: '' },
   geminiKey: '',
   claudeKey: '',
+  miNombre: '',
+  miCelular: '',
 };
 
 export function fechaHoy(): string {
@@ -100,6 +102,8 @@ export function normalizarConfig(c: Partial<ConfigDT>): ConfigDT {
     comisiones: { ...CONFIG_DEFECTO.comisiones, ...(c.comisiones ?? {}) },
     yape: { ...CONFIG_DEFECTO.yape, ...(c.yape ?? {}) },
     plin: { ...CONFIG_DEFECTO.plin, ...(c.plin ?? {}) },
+    miNombre: (c.miNombre ?? '').trim(),
+    miCelular: (c.miCelular ?? '').trim(),
   };
 }
 

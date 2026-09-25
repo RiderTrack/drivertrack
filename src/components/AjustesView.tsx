@@ -3,11 +3,12 @@
 // key del escáner Gemini (F-ID2) y backup
 // ═══════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Check, Database, ExternalLink, Loader2, Trash2, Upload, X } from 'lucide-react';
+import { Bot, Check, Compass, Database, ExternalLink, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { Billetera, ConfigDT, ORIGENES } from '../types';
 import { CONFIG_DEFECTO, guardarConfig } from '../storage';
 import { comprimirImagen, descargarArchivo } from '../utils';
 import { probarKeyIA } from '../services/escanerIA';
+import { AppNavegacion, EVENTO_NAV_CHANGED, getAppNavegacion, setAppNavegacion } from '../services/navegacion';
 
 interface Props {
   config: ConfigDT;
@@ -103,11 +104,25 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
   const [claudeKey, setClaudeKey] = useState(config.claudeKey); // F-ID2.5: token de respaldo
   const [probando, setProbando] = useState(false);
   const [prueba, setPrueba] = useState<{ ok: boolean; mensaje: string } | null>(null);
+  // F-ID3.3: con qué app navegar a las entregas (Google/Waze/preguntar)
+  const [navApp, setNavApp] = useState<AppNavegacion>(() => getAppNavegacion());
+
+  // Si la preferencia cambia desde el mini-selector (o desde otro
+  // lado), el selector de acá se entera al toque
+  useEffect(() => {
+    const alCambiar = (e: Event) => setNavApp((e as CustomEvent<AppNavegacion>).detail);
+    window.addEventListener(EVENTO_NAV_CHANGED, alCambiar);
+    return () => window.removeEventListener(EVENTO_NAV_CHANGED, alCambiar);
+  }, []);
   const inputBackup = useRef<HTMLInputElement>(null);
 
-  // Arma el ConfigDT completo a partir de los estados locales
+  // Arma el ConfigDT completo a partir de los estados locales.
+  // ⚠️ Empieza desde ...config para conservar lo que NO se edita en
+  // esta pantalla (F-ID3.3: miNombre/miCelular del QR 📱) — sin el
+  // spread, cambiar la meta acá BORRARÍA tu QR guardado.
   function armarConfig(): ConfigDT {
     return {
+      ...config,
       metaDiaria: parseFloat(meta) || 0,
       comisiones: {
         indrive: parseFloat(String(comisiones.indrive)) || 0,
@@ -317,6 +332,40 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       />
       <PanelBilletera titulo="Plin" emoji="🔷" billetera={plin} onChange={setPlin} />
 
+      {/* F-ID3.3: 🧭 con qué app viajar a las entregas */}
+      <section className="rounded-2xl border border-slate-700 bg-slate-800/40 p-4">
+        <p className="flex items-center gap-1.5 text-xs font-bold text-slate-300">
+          <Compass size={13} className="text-cyan-400" /> Navegación a la entrega
+        </p>
+        <p className="mt-1 text-[11px] leading-snug text-slate-400">
+          Con qué app se abre el botón <b className="text-cyan-300">🧭 Navegar</b> (en el formulario y en cada
+          viaje de la lista). Con “Preguntar” te deja elegir cada vez.
+        </p>
+        <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl border border-slate-700 bg-slate-950 p-1" data-testid="ajustes-nav-app">
+          {(
+            [
+              { id: 'preguntar' as AppNavegacion, nombre: 'Preguntar' },
+              { id: 'google' as AppNavegacion, nombre: 'Google' },
+              { id: 'waze' as AppNavegacion, nombre: 'Waze' },
+            ]
+          ).map(op => (
+            <button
+              key={op.id}
+              onClick={() => {
+                setNavApp(op.id);
+                setAppNavegacion(op.id);
+              }}
+              className={`rounded-lg px-2 py-2 text-[11px] font-bold transition-colors ${
+                navApp === op.id ? 'bg-cyan-500 text-slate-950' : 'text-slate-400 hover:text-slate-200'
+              }`}
+              data-testid={`ajustes-nav-${op.id}`}
+            >
+              {op.nombre}
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* Backup */}
       <section className="rounded-2xl border border-slate-700 bg-slate-800/40 p-4">
         <p className="text-xs font-bold text-slate-300">🗄️ Respaldo de datos</p>
@@ -380,7 +429,7 @@ export default function AjustesView({ config, onGuardar, onExportarBackup, onImp
       </p>
 
       <p className="pb-2 text-center text-[10px] text-slate-500">
-        DriverTrack v0.3.2 (F-ID3.2) — Trackverse · Lima, PE
+        DriverTrack v0.3.3 (F-ID3.3) — Trackverse · Lima, PE
       </p>
     </div>
   );

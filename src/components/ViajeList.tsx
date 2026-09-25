@@ -12,11 +12,15 @@
 // km reales si ya se grabó.
 // F-ID3.2: botón 📞 para LLAMAR directo al cliente (abre el
 // marcador) — junto al 💬 de WhatsApp.
+// F-ID3.3: botón 🧭 para VIAJAR a la entrega con Waze o Google
+// Maps (junto al 📍 de GPS) + mini-selector de app.
 import { useState } from 'react';
-import { MessageCircle, Navigation, Phone, Square, Trash2 } from 'lucide-react';
+import { Compass, MessageCircle, Navigation, Phone, Square, Trash2 } from 'lucide-react';
 import { ConfigDT, nombreOrigen, Viaje } from '../types';
 import { armarMensajeCobro, fmtSoles, linkLlamada, linkWhatsApp, normalizarCelular } from '../utils';
 import { formatearDuracion } from '../services/gps';
+import { abrirNavegacion, tieneDestino } from '../services/navegacion';
+import NavegarMenu from './NavegarMenu';
 
 interface Props {
   viajes: Viaje[]; // solo los del día mostrado
@@ -38,6 +42,15 @@ export default function ViajeList({
   onDetenerGPS,
 }: Props) {
   const [confirmarId, setConfirmarId] = useState<string | null>(null);
+  // F-ID3.3: qué viaje tiene abierto el mini-selector Waze/Google
+  const [navViajeId, setNavViajeId] = useState<string | null>(null);
+
+  /** 🧭 abrir Waze/Google hacia la entrega de ESTE viaje */
+  function navegarViaje(v: Viaje) {
+    const destino = v.coordenadas ?? { direccion: v.direccion.trim() };
+    if (!tieneDestino(destino)) return;
+    if (!abrirNavegacion(destino)) setNavViajeId(v.id);
+  }
 
   if (viajes.length === 0) {
     return (
@@ -108,28 +121,43 @@ export default function ViajeList({
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-1">
-            {/* F-ID3: 📍 grabar los km GPS de ESTE viaje */}
-            {viajeGPSActivo === v.id && onDetenerGPS ? (
-              <button
-                onClick={onDetenerGPS}
-                className="relative flex items-center gap-1 rounded-lg bg-emerald-500/20 px-2 py-2 text-[10px] font-bold text-emerald-300"
-                aria-label="Terminar grabación GPS"
-                data-testid="boton-gps-activo"
-              >
-                <span className="absolute right-1 top-1 h-1.5 w-1.5 animate-ping rounded-full bg-emerald-400" />
-                <Square size={11} fill="currentColor" /> GPS
-              </button>
-            ) : onIniciarGPS ? (
-              <button
-                onClick={() => onIniciarGPS(v.id)}
-                className="rounded-lg bg-sky-500/15 p-2 text-sky-400 transition-colors hover:bg-sky-500/25"
-                aria-label="Grabar los km GPS de este viaje"
-                title="Grabar los km de este viaje"
-                data-testid="boton-gps"
-              >
-                <Navigation size={16} />
-              </button>
-            ) : null}
+            {/* F-ID3: 📍 grabar los km GPS de ESTE viaje + F-ID3.3:
+                🧭 viajar a la entrega con Waze / Google Maps */}
+            <div className="flex items-center gap-1">
+              {viajeGPSActivo === v.id && onDetenerGPS ? (
+                <button
+                  onClick={onDetenerGPS}
+                  className="relative flex items-center gap-1 rounded-lg bg-emerald-500/20 px-2 py-2 text-[10px] font-bold text-emerald-300"
+                  aria-label="Terminar grabación GPS"
+                  data-testid="boton-gps-activo"
+                >
+                  <span className="absolute right-1 top-1 h-1.5 w-1.5 animate-ping rounded-full bg-emerald-400" />
+                  <Square size={11} fill="currentColor" /> GPS
+                </button>
+              ) : onIniciarGPS ? (
+                <button
+                  onClick={() => onIniciarGPS(v.id)}
+                  className="rounded-lg bg-sky-500/15 p-2 text-sky-400 transition-colors hover:bg-sky-500/25"
+                  aria-label="Grabar los km GPS de este viaje"
+                  title="Grabar los km de este viaje"
+                  data-testid="boton-gps"
+                >
+                  <Navigation size={16} />
+                </button>
+              ) : null}
+              {/* F-ID3.3: 🧭 navegar a la entrega (solo si hay destino) */}
+              {(v.coordenadas || v.direccion.trim()) && (
+                <button
+                  onClick={() => navegarViaje(v)}
+                  className="rounded-lg bg-cyan-500/15 p-2 text-cyan-300 transition-colors hover:bg-cyan-500/25"
+                  aria-label="Navegar a la entrega con Waze o Google Maps"
+                  title="Navegar a la entrega (Waze / Google Maps)"
+                  data-testid="boton-navegar-lista"
+                >
+                  <Compass size={16} />
+                </button>
+              )}
+            </div>
             {v.celular.trim() && (
               <div className="flex items-center gap-1">
                 {/* F-ID3.2: 📞 llamar directo — abre el marcador con +51 */}
@@ -195,6 +223,20 @@ export default function ViajeList({
           </div>
         </div>
       ))}
+
+      {/* F-ID3.3: mini-selector Waze / Google Maps del viaje elegido */}
+      {navViajeId &&
+        (() => {
+          const v = ordenados.find(x => x.id === navViajeId);
+          if (!v) return null;
+          return (
+            <NavegarMenu
+              destino={v.coordenadas ?? { direccion: v.direccion.trim() }}
+              etiqueta={v.direccion.trim()}
+              onCerrar={() => setNavViajeId(null)}
+            />
+          );
+        })()}
     </div>
   );
 }

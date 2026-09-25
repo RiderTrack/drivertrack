@@ -20,6 +20,8 @@ App hermana de [RiderTrack V2](https://github.com/RiderTrack/ridertrack-v2) — 
 - **📞 Llamar directo (F-ID3.2)**: botón al lado del 💬 — abre el marcador del teléfono con el número del cliente (con +51)
 - **🧲 Borrador a prueba de balas (F-ID3.2)**: lo escrito o escaneado en el formulario **ya no se pierde** al cambiar de pestaña, recargar o cuando Android mata la app
 - **🔐 Permisos Android completos (F-ID3.2)**: el APK ahora pide **Ubicación** (además de Cámara) — diálogo nativo al empezar a grabar
+- **🧭 Navegar a la entrega (F-ID3.3)**: la app no solo cuenta los km — también te LLEVA. Botón **Navegar** en el formulario (aparece al escanear o escribir la dirección) y 🧭 en cada viaje de la lista → **Waze o Google Maps** (modo moto). Si marcaste el pin con 📍 Ubicar, navega al **punto exacto**; si no, busca la dirección. Mini-selector con "siempre usar esta app" + preferencia en Ajustes (patrón de RiderTrack v2)
+- **📱 Mi QR (F-ID3.3)**: cuando el cliente te pide el número, le mostrás la pantalla: tu **QR grande con tu nombre arriba**, generado en el teléfono (sin internet). Dos modos: **💬 WhatsApp** (al escanearlo le abre tu chat directo) o **👤 Contacto** (vCard que te guarda con nombre y número). Se configura UNA vez (como tu Yape) y queda en el header, a un toque desde cualquier pestaña. Botón Compartir para mandarlo como mensaje
 - **🌗 Modo claro/oscuro (F-ID2.3)** y **ajustes con autoguardado total** (los decimales de la comisión ya no se pierden)
 - **🗄️ Backup local**: exportá/importá todos tus datos en JSON (local-first, sin cuentas)
 
@@ -38,6 +40,8 @@ Descargá la APK desde [Actions → Build DriverTrack APK → artifacts](https:/
 | F-ID5 | Robot WhatsApp: mandar QR + monto al cliente automático | ⏳ |
 
 > F-ID2.x (mejoras del escáner): 2.1 keys nuevas + Claude · 2.2 autoguardado key · 2.3 decimales + tema · 2.4 galería + errores técnicos · 2.5 doble key con respaldo + WhatsApp de cobro · 2.6 nombre real (no confunde "C.1" con la persona) + yape del pedido · 2.7 tu Yape guardado 1 vez + mensaje ordenado + vista previa en vivo · **2.8 mensaje unificado: el botón 💬 de la lista manda EXACTAMENTE el mismo mensaje que el Cobrar de arriba**
+>
+> **F-ID3.3** 🧭📱 (viajar desde la app + tu QR): botón Navegar en el formulario y en cada viaje → Waze / Google Maps (modo moto, pin exacto si ubicaste la entrega, mini-selector con "siempre usar esta app" + preferencia en Ajustes) · Mi QR en el header con tu nombre — WhatsApp directo o contacto vCard, generado local con la librería qrcode, datos guardados 1 vez + Compartir.
 >
 > **F-ID3.2** 🔧 (ajustes de terreno): permisos Android de UBICACIÓN en el APK (manifest + diálogo nativo vía @capacitor/geolocation) · 📞 llamar directo · 🧲 borrador del formulario persistente · 📍 ubicar por coordenadas con mini-mapa (pin arrastrable / mi GPS / a mano) · 🛵 seguimiento de ruta en vivo con botón Seguirme
 >

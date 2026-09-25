@@ -46,6 +46,8 @@ export interface ConfigDT {
   plin: Billetera;
   geminiKey: string;                        // F-ID2: key de AI Studio para el escáner (vive solo en el teléfono)
   claudeKey: string;                        // F-ID2.5: token de Anthropic — el escáner lo usa de RESPALDO si Gemini falla
+  miNombre: string;                         // F-ID3.3: TU nombre — sale grande en tu QR para los clientes
+  miCelular: string;                        // F-ID3.3: TU WhatsApp — el QR lo abre directo (una vez, como tu Yape)
 }
 
 export interface ResumenDia {

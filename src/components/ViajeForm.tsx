@@ -31,12 +31,14 @@
 //        a mano, igual que RiderTrack v2).
 //        📞 LLAMAR — botón junto a Cobrar que abre el marcador.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, ImageUp, Loader2, MapPin, MessageCircle, Phone, Plus, X, Zap } from 'lucide-react';
+import { Camera, Check, Compass, ImageUp, Loader2, MapPin, MessageCircle, Phone, Plus, X, Zap } from 'lucide-react';
 import { ConfigDT, OrigenViaje, ORIGENES, Viaje } from '../types';
 import { fechaHoy, horaAhora } from '../storage';
 import { armarMensajeCobro, fmtSoles, linkLlamada, linkWhatsApp, normalizarCelular, vibrar } from '../utils';
 import { escanearDireccion } from '../services/escanerIA';
+import { abrirNavegacion, tieneDestino } from '../services/navegacion';
 import UbicarModal from './UbicarModal';
+import NavegarMenu from './NavegarMenu';
 
 // ── F-ID3.2: el BORRADOR del formulario (vive en localStorage) ──
 interface BorradorViaje {
@@ -132,6 +134,8 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
     borradorInicial?.coordenadas ?? null,
   );
   const [ubicarAbierto, setUbicarAbierto] = useState(false);
+  // F-ID3.3: mini-selector Waze/Google (cuando la preferencia es 'preguntar')
+  const [navAbierto, setNavAbierto] = useState(false);
 
   // ── F-ID2.7: TU Yape para cobrar (se guarda 1 vez, vive en config) ──
   const [miYapeNum, setMiYapeNum] = useState('');
@@ -320,6 +324,15 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
     }
     setError('');
     window.open(linkLlamada(celular), '_self');
+  }
+
+  // F-ID3.3: 🧭 abre Waze/Google Maps hacia la entrega. Si no hay
+  // preferencia guardada ('preguntar'), muestra el mini-selector.
+  // Escaneaste el pedido → Navegar → manejá (y grabá tus km 📍).
+  function navegarAEntrega() {
+    const destino = coordenadas ?? { direccion: direccion.trim() };
+    if (!tieneDestino(destino)) return;
+    if (!abrirNavegacion(destino)) setNavAbierto(true);
   }
 
   function enviar() {
@@ -590,6 +603,23 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
         </div>
       )}
 
+      {/* F-ID3.3: 🧭 viajar hasta la entrega con Waze o Google Maps —
+          aparece cuando hay dirección (escaneada o escrita) o pin.
+          Así la app no solo CUENTA los km: también te LLEVA. */}
+      {(direccion.trim() || coordenadas) && (
+        <button
+          onClick={navegarAEntrega}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-sky-500/15 px-3 py-2.5 text-xs font-black text-sky-300 transition-all active:scale-[0.98] hover:bg-sky-500/25"
+          title="Abrir Waze o Google Maps hacia la entrega"
+          data-testid="boton-navegar-form"
+        >
+          <Compass size={15} /> Navegar a la entrega
+          <span className="text-[9px] font-medium text-sky-400/70">
+            {coordenadas ? 'con el pin exacto 📍' : 'con la dirección 🧭'}
+          </span>
+        </button>
+      )}
+
       {/* F-ID2.5: celular + botones 📞 llamar y 💬 Cobrar lado a lado */}
       <div className="mt-2 flex gap-2">
         <input
@@ -775,6 +805,15 @@ export default function ViajeForm({ config, onAgregar, onGuardarMiYape, onNecesi
             vibrar(40);
           }}
           onCerrar={() => setUbicarAbierto(false)}
+        />
+      )}
+
+      {/* F-ID3.3: mini-selector Waze / Google Maps (preferencia 'preguntar') */}
+      {navAbierto && (
+        <NavegarMenu
+          destino={coordenadas ?? { direccion: direccion.trim() }}
+          etiqueta={direccion.trim()}
+          onCerrar={() => setNavAbierto(false)}
         />
       )}
     </div>

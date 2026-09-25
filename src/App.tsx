@@ -7,7 +7,7 @@
 // los km en vivo y al terminar quedan guardados en el viaje.
 // ═══════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bike, CheckCircle2, Map as MapIcon, Moon, Receipt, Settings, Sun } from 'lucide-react';
+import { Bike, CheckCircle2, Map as MapIcon, Moon, QrCode, Receipt, Settings, Sun } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { ConfigDT, Viaje } from './types';
@@ -20,6 +20,7 @@ import {
   guardarViajes,
   marcarMetaCelebrada,
   metaYaCelebrada,
+  normalizarConfig,
   resumenDia,
 } from './storage';
 import { descargarArchivo, vibrar } from './utils';
@@ -40,6 +41,7 @@ import MapView from './components/MapView';
 import GpsBar from './components/GpsBar';
 import AjustesView from './components/AjustesView';
 import YapePanel from './components/YapePanel';
+import MiQrModal from './components/MiQrModal';
 import Confeti from './components/Confeti';
 
 type Tab = 'viajes' | 'caja' | 'mapa' | 'ajustes';
@@ -51,6 +53,8 @@ export default function App() {
   const [confeti, setConfeti] = useState(false);
   const [toast, setToast] = useState('');
   const [cobrarAbierto, setCobrarAbierto] = useState(false);
+  // F-ID3.3: 📱 Mi QR — tu contacto para mostrarle a los clientes
+  const [qrAbierto, setQrAbierto] = useState(false);
   // F-ID3: seguimiento GPS en curso (sobrevive recargas: se lee de localStorage)
   const [estadoGPS, setEstadoGPS] = useState<EstadoGPS | null>(() => leerEstadoGPS());
   const [tema, setTema] = useState<Tema>(() => {
@@ -120,6 +124,15 @@ export default function App() {
     guardarConfig(c);
     setConfig(c);
     mostrarToast('💜 Tu Yape quedó guardado — ya sale en todos los cobros');
+  }
+
+  // F-ID3.3: tu nombre + celular para el QR — se guarda UNA vez
+  // (igual que tu Yape) y arma el QR que le mostrás a los clientes
+  function guardarMiContacto(nombre: string, celular: string) {
+    const c: ConfigDT = { ...config, miNombre: nombre, miCelular: celular };
+    guardarConfig(c);
+    setConfig(c);
+    mostrarToast('📱 Tu QR quedó listo — mostraselo al cliente y te escanea');
   }
 
   function eliminarViaje(id: string) {
@@ -321,8 +334,11 @@ export default function App() {
       const data = JSON.parse(texto);
       if (Array.isArray(data.viajes)) setViajes(data.viajes);
       if (data.config) {
-        guardarConfig(data.config);
-        setConfig(data.config);
+        // F-ID3.3: normaliza el config (los backups viejos no traen
+        // miNombre/miCelular → undefined.trim() reventaría el QR 📱)
+        const c = normalizarConfig(data.config);
+        guardarConfig(c);
+        setConfig(c);
       }
       mostrarToast('Backup restaurado ✅');
     } catch {
@@ -352,6 +368,16 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* 📱 F-ID3.3: Mi QR — el cliente te lo escanea y te tiene */}
+            <button
+              onClick={() => setQrAbierto(true)}
+              aria-label="Mostrar mi QR"
+              title="Mi QR — mostraselo al cliente"
+              data-testid="boton-mi-qr"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-700/60 bg-sky-500/10 text-sky-300 transition-transform active:scale-90"
+            >
+              <QrCode size={16} />
+            </button>
             {/* 🌗 F-ID2.3: modo claro / oscuro */}
             <button
               onClick={alternarTema}
@@ -441,6 +467,16 @@ export default function App() {
           tipo="yape"
           montoInicial={resumenHoy.neto}
           onCerrar={() => setCobrarAbierto(false)}
+          onToast={mostrarToast}
+        />
+      )}
+
+      {/* F-ID3.3: 📱 Mi QR — tu contacto con nombre, para los clientes */}
+      {qrAbierto && (
+        <MiQrModal
+          config={config}
+          onGuardar={guardarMiContacto}
+          onCerrar={() => setQrAbierto(false)}
           onToast={mostrarToast}
         />
       )}
