@@ -7,7 +7,7 @@
 // los km en vivo y al terminar quedan guardados en el viaje.
 // ═══════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bike, CheckCircle2, Map as MapIcon, Moon, QrCode, Receipt, Settings, Sun } from 'lucide-react';
+import { BarChart3, Bike, CheckCircle2, Map as MapIcon, Moon, QrCode, Receipt, Settings, Sun } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { ConfigDT, Viaje } from './types';
@@ -40,11 +40,12 @@ import CajaView from './components/CajaView';
 import MapView from './components/MapView';
 import GpsBar from './components/GpsBar';
 import AjustesView from './components/AjustesView';
+import EstadisticasView from './components/EstadisticasView';
 import YapePanel from './components/YapePanel';
 import MiQrModal from './components/MiQrModal';
 import Confeti from './components/Confeti';
 
-type Tab = 'viajes' | 'caja' | 'mapa' | 'ajustes';
+type Tab = 'viajes' | 'caja' | 'mapa' | 'stats' | 'ajustes';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('viajes');
@@ -454,6 +455,8 @@ export default function App() {
 
         {tab === 'mapa' && <MapView viajes={viajes} estadoGPS={estadoGPS} />}
 
+        {tab === 'stats' && <EstadisticasView viajes={viajes} />}
+
         {tab === 'ajustes' && (
           <AjustesView
             config={config}
@@ -507,12 +510,13 @@ export default function App() {
 
       {/* Nav inferior */}
       <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t border-slate-800 bg-slate-950/95 backdrop-blur">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {(
             [
               { id: 'viajes' as Tab, nombre: 'Viajes', icon: Bike },
               { id: 'caja' as Tab, nombre: 'Caja', icon: Receipt },
               { id: 'mapa' as Tab, nombre: 'Mapa', icon: MapIcon },
+              { id: 'stats' as Tab, nombre: 'Stats', icon: BarChart3 },
               { id: 'ajustes' as Tab, nombre: 'Ajustes', icon: Settings },
             ]
           ).map(t => {

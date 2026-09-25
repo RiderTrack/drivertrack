@@ -22,6 +22,7 @@ App hermana de [RiderTrack V2](https://github.com/RiderTrack/ridertrack-v2) — 
 - **🔐 Permisos Android completos (F-ID3.2)**: el APK ahora pide **Ubicación** (además de Cámara) — diálogo nativo al empezar a grabar
 - **🧭 Navegar a la entrega (F-ID3.3)**: la app no solo cuenta los km — también te LLEVA. Botón **Navegar** en el formulario (aparece al escanear o escribir la dirección) y 🧭 en cada viaje de la lista → **Waze o Google Maps** (modo moto). Si marcaste el pin con 📍 Ubicar, navega al **punto exacto**; si no, busca la dirección. Mini-selector con "siempre usar esta app" + preferencia en Ajustes (patrón de RiderTrack v2)
 - **📱 Mi QR = TU QR de Yape (F-ID3.3 → F-ID3.4)**: cuando el cliente va a pagarte, le mostrás la pantalla: **tu QR de Yape GRANDE** (la captura que subís una vez, la misma de Ajustes) con tu nombre arriba y tu número violeta — y al tocarla se pone en **pantalla completa** para que escanee cómodo. Sin QR subido todavía → te lo pide ahí mismo con un botón violeta. También tenés **💬 WhatsApp** (tu chat directo) y **👤 Contacto** (vCard con nombre y número), generados en el teléfono sin internet. Está en el header, a un toque desde cualquier pestaña
+- **📊 Estadísticas (F-ID4)**: nueva pestaña **Stats** que responde las 3 preguntas que importan: **¿DÓNDE gano más?** → 🏆 zonas de oro con barras y corona para la mejor (junta "Surco", "surco." y "SURCO" en una sola) · **¿CUÁNDO?** → ⏰ horas de oro: gráfico de 24 barras con tus 3 mejores horas en DORADO y qué % de tu plata sale de ahí · **¿CUÁNTO cobrar?** → 💰 **precio piso**: con tu S/ por km REAL (solo de los viajes grabados con GPS), poné cuántos km es el viaje y te dice **"no lo tomes por menos de S/ X"** (redondeado a 0.50 para cobrarlo fácil en la calle). De regalo: curva de cómo venís, ¿vas mejor que la semana pasada? (▲▼) y tus récords de toda la historia. Períodos Hoy / 7 días / 30 días / Todo
 - **🌗 Modo claro/oscuro (F-ID2.3)** y **ajustes con autoguardado total** (los decimales de la comisión ya no se pierden)
 - **🗄️ Backup local**: exportá/importá todos tus datos en JSON (local-first, sin cuentas)
 
@@ -36,12 +37,14 @@ Descargá la APK desde [Actions → Build DriverTrack APK → artifacts](https:/
 | F-ID1 | Viaje + comisión + meta + caja + QR Yape | ✅ |
 | F-ID2 | Foto → OCR Gemini (dirección/cliente/monto automáticos) | ✅ |
 | F-ID3 | Mapa en vivo + km GPS por viaje (copy de RiderTrack) | ✅ |
-| F-ID4 | Estadísticas: zonas, horas de oro, precio piso | ⏳ |
+| F-ID4 | Estadísticas: zonas, horas de oro, precio piso | ✅ |
 | F-ID5 | Robot WhatsApp: mandar QR + monto al cliente automático | ⏳ |
 
 > F-ID2.x (mejoras del escáner): 2.1 keys nuevas + Claude · 2.2 autoguardado key · 2.3 decimales + tema · 2.4 galería + errores técnicos · 2.5 doble key con respaldo + WhatsApp de cobro · 2.6 nombre real (no confunde "C.1" con la persona) + yape del pedido · 2.7 tu Yape guardado 1 vez + mensaje ordenado + vista previa en vivo · **2.8 mensaje unificado: el botón 💬 de la lista manda EXACTAMENTE el mismo mensaje que el Cobrar de arriba**
 >
 > **F-ID3.4** 💜 (el QR es el de tu Yape): Mi QR abre DIRECTO en tu **QR de Yape** — la misma imagen que subís en Ajustes → Yape (una sola fuente), con tu nombre arriba, el número violeta y **pantalla completa** al tocar para que el cliente escanee y te pague · sin QR subido → subida directa desde el modal (captura de tu app de Yape, comprimida a 800px en el teléfono) · editar guarda nombre + celular + QR en una sola pasada · cambiar la meta no borra tu QR (regresión blindada)
+>
+> **F-ID4** 📊 (estadísticas): 5ª pestaña **Stats** · zonas de oro (normaliza Surco/surco./SURCO, corona dorada, "(sin zona)" no roba) · horas de oro (24 barras, top-3 dorado, % de la plata) · precio piso con S/ por km REAL de los GPS (período sin km → usa toda tu historia, etiquetado; sin GPS → hint y promedio por viaje) · KPIs honestos (días trabajados, S/ por día) · curva suave con relleno de días vacíos · comparativa fija últimos 7 vs semana anterior · récords de TODA la historia aunque el chip diga "hoy" · gráficos a mano (0 KB de librerías)
 >
 > **F-ID3.3** 🧭📱 (viajar desde la app + tu QR): botón Navegar en el formulario y en cada viaje → Waze / Google Maps (modo moto, pin exacto si ubicaste la entrega, mini-selector con "siempre usar esta app" + preferencia en Ajustes) · Mi QR en el header con tu nombre — WhatsApp directo o contacto vCard, generado local con la librería qrcode, datos guardados 1 vez + Compartir.
 >
